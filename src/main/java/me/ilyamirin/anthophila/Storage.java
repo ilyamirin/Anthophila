@@ -1,14 +1,16 @@
 package me.ilyamirin.anthophila;
 
+import java.nio.ByteBuffer;
+
 /**
  *
  * @author ilyamirin
  */
 public interface Storage {
 
-    boolean contains(byte[] md5Hash);
+    boolean contains(ByteBuffer md5Hash);
 
-    void append(byte[] md5Hash, byte[] chunk);
+    void append(ByteBuffer md5Hash, ByteBuffer chunk);
 
-    byte[] read(byte[] md5Hash);
+    ByteBuffer read(ByteBuffer md5Hash);
 }

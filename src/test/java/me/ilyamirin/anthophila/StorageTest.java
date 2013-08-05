@@ -1,10 +1,9 @@
 package me.ilyamirin.anthophila;
 
-import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -47,19 +46,22 @@ public class StorageTest {
         byte[] chunk = new byte[65536];
         r.nextBytes(chunk);
 
-        storage.append(md5Hash, chunk);
+        storage.append(ByteBuffer.allocate(8).put(md5Hash), ByteBuffer.allocate(chunk.length).put(chunk));
 
-        assertTrue(storage.contains(md5Hash));
-        assertTrue(Arrays.equals(chunk, storage.read(md5Hash)));
+        assertTrue(storage.contains(ByteBuffer.allocate(8).put(md5Hash)));
+        ByteBuffer result = storage.read(ByteBuffer.allocate(8).put(md5Hash));
+        assertTrue(Arrays.equals(chunk, result.array()));
 
         chunk = new byte[5536];
         r.nextBytes(md5Hash);
         r.nextBytes(chunk);
 
-        storage.append(md5Hash, chunk);
+        storage.append(ByteBuffer.allocate(8).put(md5Hash), ByteBuffer.allocate(chunk.length).put(chunk));
 
-        assertTrue(storage.contains(md5Hash));
-        assertTrue(Arrays.equals(chunk, storage.read(md5Hash)));
+        assertTrue(storage.contains(ByteBuffer.allocate(8).put(md5Hash)));
+        result = storage.read(ByteBuffer.allocate(8).put(md5Hash));
+        assertTrue(Arrays.equals(chunk, result.array()));
+
 
         assertEquals(65536 + 5536 + (2 * 13), file.length());
     }
@@ -85,14 +87,14 @@ public class StorageTest {
                         chunk = new byte[65536];
                         r.nextBytes(chunk);
 
-                        storage.append(md5Hash, chunk);
+                        storage.append(ByteBuffer.allocate(8).put(md5Hash), ByteBuffer.allocate(65536).put(chunk));
 
-                        if (!storage.contains(md5Hash)) {
+                        if (!storage.contains(ByteBuffer.allocate(8).put(md5Hash))) {
                             log.error("storage does not contains {}", md5Hash);
                             log.info("Assertion Errors Count {}", assertioErrorsCount.incrementAndGet());
                         } else {
-                            byte[] returnedChunk = storage.read(md5Hash);
-                            if (!Arrays.equals(chunk, returnedChunk)) {
+                            ByteBuffer returnedChunk = storage.read(ByteBuffer.allocate(8).put(md5Hash));
+                            if (!Arrays.equals(chunk, returnedChunk.array())) {
                                 log.error("returned value does not equal to original: {} {}", chunk, returnedChunk);
                                 log.info("Assertion Errors Count {}", assertioErrorsCount.incrementAndGet());
                             }
@@ -119,4 +121,5 @@ public class StorageTest {
         assertEquals(0, assertioErrorsCount.get());
         assertEquals((65536 + 13) * cuncurrentClientsNumber * cuncurrentRequestsNumber, file.length());
     }
+
 }
