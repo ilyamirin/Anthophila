@@ -1,7 +1,6 @@
 package me.ilyamirin.anthophila;
 
 import com.carrotsearch.hppc.LongObjectOpenHashMap;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -21,8 +20,7 @@ public class StorageImpl implements Storage {
     public static final int MAX_CHUNK_LENGTH = 65536;
     @NonNull
     private FileChannel fileChannel;
-    private AtomicBoolean isAccessible = new AtomicBoolean(true);
-    private LongObjectOpenHashMap<Number[]> index = new LongObjectOpenHashMap<>();
+    private LongObjectOpenHashMap<IndexEntry> index = new LongObjectOpenHashMap<>();
 
     @Override
     public boolean contains(ByteBuffer md5Hash) {
@@ -32,9 +30,9 @@ public class StorageImpl implements Storage {
     @Override
     public synchronized void append(ByteBuffer md5Hash, ByteBuffer chunk) {
         try {
-            md5Hash.flip(); chunk.flip();
-
+            long md5HashAsLong = md5Hash.getLong(0);
             long firstChunkBytePosition = fileChannel.size() + 13l;
+            int chunkLength = chunk.array().length;
 
             ByteBuffer byteBuffer = ByteBuffer.allocate(13 + MAX_CHUNK_LENGTH)
                     .put(Byte.MAX_VALUE) //tombstone is off
@@ -42,16 +40,14 @@ public class StorageImpl implements Storage {
                     .putInt(chunk.array().length) //chunk length
                     .put(chunk); //chunk itself
 
-            byteBuffer.flip();
+            byteBuffer.position(0);
 
             while (byteBuffer.hasRemaining()) {
                 fileChannel.write(byteBuffer, fileChannel.size());
             }
 
-            index.put(md5Hash.getLong(0), new Number[]{firstChunkBytePosition, chunk.array().length});
+            index.put(md5HashAsLong, new IndexEntry(firstChunkBytePosition, chunkLength));
 
-        } catch (FileNotFoundException ex) {
-            log.error("Oops!", ex);
         } catch (IOException ex) {
             log.error("Oops!", ex);
         }
@@ -62,16 +58,28 @@ public class StorageImpl implements Storage {
         try {
             long key = md5Hash.getLong(0);
             if (index.containsKey(key)) {
-                Number[] chunkPositionAndLength = index.get(key);
-                ByteBuffer buffer = ByteBuffer.allocate(chunkPositionAndLength[1].intValue());
-                fileChannel.read(buffer, chunkPositionAndLength[0].longValue());
+                IndexEntry indexEntry = index.get(key);
+                ByteBuffer buffer = ByteBuffer.allocate(indexEntry.getChunkLength());
+                fileChannel.read(buffer, indexEntry.getChunkPosition());
                 return buffer;
             }
-        } catch (FileNotFoundException ex) {
-            log.error("Oops!", ex);
         } catch (IOException ex) {
             log.error("Oops!", ex);
         }
         return null;
+    }
+
+    @Override
+    public synchronized void delete(ByteBuffer md5Hash) {
+        IndexEntry indexEntry = index.get(md5Hash.getLong(0));
+        if (indexEntry != null) {
+            try {
+                long tombstonePosition = indexEntry.getChunkPosition() - 13;
+                fileChannel.write(ByteBuffer.allocate(1).put(Byte.MIN_VALUE), tombstonePosition);
+                index.remove(md5Hash.getLong(0));
+            } catch (IOException ex) {
+                log.error("Oops!", ex);
+            }
+        }
     }
 }

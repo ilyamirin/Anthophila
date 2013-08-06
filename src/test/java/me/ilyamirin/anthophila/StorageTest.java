@@ -4,7 +4,9 @@ import java.io.File;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import static junit.framework.Assert.*;
@@ -41,29 +43,33 @@ public class StorageTest {
 
     @Test
     public void basicOpsTest() {
-        byte[] md5Hash = new byte[8];
-        r.nextBytes(md5Hash);
-        byte[] chunk = new byte[65536];
-        r.nextBytes(chunk);
+        ByteBuffer md5Hash = ByteBuffer.allocate(8);
+        r.nextBytes(md5Hash.array());
+        ByteBuffer chunk = ByteBuffer.allocate(StorageImpl.MAX_CHUNK_LENGTH);
+        r.nextBytes(chunk.array());
 
-        storage.append(ByteBuffer.allocate(8).put(md5Hash), ByteBuffer.allocate(chunk.length).put(chunk));
+        storage.append(md5Hash, chunk);
 
-        assertTrue(storage.contains(ByteBuffer.allocate(8).put(md5Hash)));
-        ByteBuffer result = storage.read(ByteBuffer.allocate(8).put(md5Hash));
-        assertTrue(Arrays.equals(chunk, result.array()));
+        assertTrue(storage.contains(md5Hash));
+        assertTrue(chunk.equals(storage.read(md5Hash)));
 
-        chunk = new byte[5536];
-        r.nextBytes(md5Hash);
-        r.nextBytes(chunk);
+        chunk = ByteBuffer.allocate(StorageImpl.MAX_CHUNK_LENGTH / 2);
+        r.nextBytes(md5Hash.array());
+        r.nextBytes(chunk.array());
 
-        storage.append(ByteBuffer.allocate(8).put(md5Hash), ByteBuffer.allocate(chunk.length).put(chunk));
+        storage.append(md5Hash, chunk);
 
-        assertTrue(storage.contains(ByteBuffer.allocate(8).put(md5Hash)));
-        result = storage.read(ByteBuffer.allocate(8).put(md5Hash));
-        assertTrue(Arrays.equals(chunk, result.array()));
+        assertTrue(storage.contains(md5Hash));
+        assertTrue(chunk.equals(storage.read(md5Hash)));
 
+        assertEquals((StorageImpl.MAX_CHUNK_LENGTH * 2) + (2 * 13), file.length());
 
-        assertEquals(65536 + 5536 + (2 * 13), file.length());
+        storage.delete(md5Hash);
+
+        assertFalse(storage.contains(md5Hash));
+        assertNull(storage.read(md5Hash));
+
+        assertEquals((StorageImpl.MAX_CHUNK_LENGTH * 2) + (2 * 13), file.length());
     }
 
     @Test
@@ -79,23 +85,31 @@ public class StorageTest {
                 @Override
                 public void run() {
                     int counter = 0;
-                    byte[] md5Hash;
-                    byte[] chunk;
+                    ByteBuffer md5Hash;
+                    ByteBuffer chunk;
                     while (counter < cuncurrentRequestsNumber) {
-                        md5Hash = new byte[8];
-                        r.nextBytes(md5Hash);
-                        chunk = new byte[65536];
-                        r.nextBytes(chunk);
+                        md5Hash = ByteBuffer.allocate(8);
+                        r.nextBytes(md5Hash.array());
+                        chunk = ByteBuffer.allocate(StorageImpl.MAX_CHUNK_LENGTH);
+                        r.nextBytes(chunk.array());
 
-                        storage.append(ByteBuffer.allocate(8).put(md5Hash), ByteBuffer.allocate(65536).put(chunk));
+                        storage.append(md5Hash, chunk);
 
-                        if (!storage.contains(ByteBuffer.allocate(8).put(md5Hash))) {
+                        if (!storage.contains(md5Hash)) {
                             log.error("storage does not contains {}", md5Hash);
                             log.info("Assertion Errors Count {}", assertioErrorsCount.incrementAndGet());
-                        } else {
-                            ByteBuffer returnedChunk = storage.read(ByteBuffer.allocate(8).put(md5Hash));
-                            if (!Arrays.equals(chunk, returnedChunk.array())) {
-                                log.error("returned value does not equal to original: {} {}", chunk, returnedChunk);
+                        } else if (!chunk.equals(storage.read(md5Hash))) {
+                            log.error("returned value does not equal to original.");
+                            log.info("Assertion Errors Count {}", assertioErrorsCount.incrementAndGet());
+                        }
+
+                        if (r.nextBoolean()) {
+                            storage.delete(md5Hash);
+                            if (storage.contains(md5Hash)) {
+                                log.error("storage contains deleted key {}", md5Hash);
+                                log.info("Assertion Errors Count {}", assertioErrorsCount.incrementAndGet());
+                            } else if (storage.read(md5Hash) != null) {
+                                log.error("Storage returned deleted value.");
                                 log.info("Assertion Errors Count {}", assertioErrorsCount.incrementAndGet());
                             }
                         }
@@ -107,7 +121,6 @@ public class StorageTest {
                         }
                     }//while
 
-                    log.trace("countDown client");
                     latch.countDown();
                 }
             };
@@ -121,5 +134,4 @@ public class StorageTest {
         assertEquals(0, assertioErrorsCount.get());
         assertEquals((65536 + 13) * cuncurrentClientsNumber * cuncurrentRequestsNumber, file.length());
     }
-
 }
