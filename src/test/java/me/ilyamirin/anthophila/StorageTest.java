@@ -79,6 +79,7 @@ public class StorageTest {
         final CountDownLatch latch = new CountDownLatch(cuncurrentClientsNumber);
         final AtomicInteger assertioErrorsCount = new AtomicInteger(0);
         final AtomicInteger passedRequests = new AtomicInteger(0);
+        final AtomicInteger chunksDeletedCounter = new AtomicInteger(0);
 
         for (int i = 0; i < cuncurrentClientsNumber; i++) {
             Runnable runnable = new Runnable() {
@@ -112,6 +113,7 @@ public class StorageTest {
                                 log.error("Storage returned deleted value.");
                                 log.info("Assertion Errors Count {}", assertioErrorsCount.incrementAndGet());
                             }
+                            chunksDeletedCounter.incrementAndGet();
                         }
 
                         counter++;
@@ -132,6 +134,9 @@ public class StorageTest {
         latch.await();
 
         assertEquals(0, assertioErrorsCount.get());
-        assertEquals((65536 + 13) * cuncurrentClientsNumber * cuncurrentRequestsNumber, file.length());
+
+        long totalSpace = (65536 + 13) * (cuncurrentClientsNumber * cuncurrentRequestsNumber
+                - chunksDeletedCounter.getAndAdd(cuncurrentClientsNumber));
+        assertEquals(totalSpace, file.length());
     }
 }
