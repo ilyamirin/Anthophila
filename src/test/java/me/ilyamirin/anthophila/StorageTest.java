@@ -42,6 +42,7 @@ public class StorageTest {
 
     public void setUp() throws IOException {
         if (aFile != null) {
+            aFile.getChannel().close();
             aFile.close();
         }
         aFile = new RandomAccessFile("test.bin", "rw");
@@ -157,6 +158,8 @@ public class StorageTest {
         assertTrue((aFile.length() - expectedSpace) == (65536 + 13) || aFile.length() == expectedSpace);
 
         setUp();
+
+        log.info("{}",aFile.length());
 
         log.info("Lets start new storage and reload database.");
         storage.loadExistedStorage(4);

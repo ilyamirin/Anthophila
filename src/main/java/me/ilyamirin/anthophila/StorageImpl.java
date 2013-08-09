@@ -123,60 +123,39 @@ public class StorageImpl implements Storage {
     public void loadExistedStorage(int parallelProcessesNumber) {
         log.info("Start loading data from existed database file.");
 
-        final AtomicLong availablePosition = new AtomicLong(0);
-        final AtomicLong chunksSuccessfullyLoaded = new AtomicLong(0);
-        final CountDownLatch latch = new CountDownLatch(parallelProcessesNumber);
-
-        for (byte i = 0; i < parallelProcessesNumber; i++) {
-            Runnable loader = new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        while (availablePosition.get() < fileChannel.size()) {
-                            long currentPosition = availablePosition.get();
-                            availablePosition.addAndGet(AUX_CHUNK_INFO_LENGTH + CHUNK_LENGTH);
-
-                            ByteBuffer buffer = ByteBuffer.allocate(AUX_CHUNK_INFO_LENGTH);
-                            fileChannel.read(buffer, currentPosition);
-                            buffer.position(0);
-
-                            byte tombstone = buffer.get();
-                            long md5HashAsLong = buffer.getLong();
-                            int chunkLength = buffer.getInt();
-                            long chunkPosition = fileChannel.position();
-
-                            IndexEntry indexEntry = new IndexEntry(chunkPosition, chunkLength);
-
-                            if (tombstone == Byte.MAX_VALUE) {
-                                mainIndex.put(md5HashAsLong, indexEntry);
-                            } else {
-                                condamnedIndex.put(md5HashAsLong, indexEntry);
-                            }
-
-                            chunksSuccessfullyLoaded.incrementAndGet();
-
-                            if (chunksSuccessfullyLoaded.get() % 1000 == 0) {
-                                log.info("{} chunks were successfully loaded", chunksSuccessfullyLoaded.get());
-                            }
-                        }//while
-
-                    } catch (IOException ex) {
-                        log.error("I can`t process existed database file:", ex);
-                    }
-
-                    latch.countDown();
-                }//run
-            };//loader
-
-            new Thread(loader).start();
-        }
+        ByteBuffer buffer = ByteBuffer.allocate(AUX_CHUNK_INFO_LENGTH);
+        long chunksSuccessfullyLoaded = 0;
+        long position = 0;
 
         try {
-            latch.await();
-        } catch (InterruptedException ex) {
-            log.error("Oops!", ex);
+            while (fileChannel.read(buffer, position) > 0) {
+                buffer.position(0);
+
+                byte tombstone = buffer.get();
+                long md5HashAsLong = buffer.getLong();
+                int chunkLength = buffer.getInt();
+                long chunkPosition = position + AUX_CHUNK_INFO_LENGTH;
+
+                IndexEntry indexEntry = new IndexEntry(chunkPosition, chunkLength);
+
+                if (tombstone == Byte.MAX_VALUE) {
+                    mainIndex.put(md5HashAsLong, indexEntry);
+                } else {
+                    condamnedIndex.put(md5HashAsLong, indexEntry);
+                }
+
+                chunksSuccessfullyLoaded++;
+
+                if (chunksSuccessfullyLoaded % 1000 == 0) {
+                    log.info("{} chunks were successfully loaded", chunksSuccessfullyLoaded);
+                }
+
+                position = chunkPosition + CHUNK_LENGTH;
+
+                buffer = ByteBuffer.allocate(AUX_CHUNK_INFO_LENGTH);
+            }//while
+        } catch (IOException ex) {
+            log.error("I can`t process existed database file:", ex);
         }
-
     }//loadExistedStorage
-
 }
