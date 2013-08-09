@@ -34,128 +34,112 @@ public class StorageImpl implements Storage {
     }
 
     @Override
-    public synchronized void append(ByteBuffer md5Hash, ByteBuffer chunk) {
-        try {
-            long md5HashAsLong = md5Hash.getLong(0);
-            int chunkLength = chunk.array().length;
+    public synchronized void append(ByteBuffer md5Hash, ByteBuffer chunk) throws IOException {
+        long md5HashAsLong = md5Hash.getLong(0);
+        int chunkLength = chunk.array().length;
 
-            if (mainIndex.containsKey(md5HashAsLong)) {
-                return;
+        if (mainIndex.containsKey(md5HashAsLong)) {
+            return;
+        }
+
+        if (condamnedIndex.containsKey(md5HashAsLong)) {
+            IndexEntry entry = condamnedIndex.get(md5HashAsLong);
+            long tombstonePosition = entry.getChunkPosition() - AUX_CHUNK_INFO_LENGTH;
+            fileChannel.write(ByteBuffer.allocate(1).put(Byte.MAX_VALUE), tombstonePosition);
+            mainIndex.put(md5HashAsLong, condamnedIndex.remove(md5HashAsLong));
+            return;
+        }
+
+        ByteBuffer byteBuffer = ByteBuffer.allocate(AUX_CHUNK_INFO_LENGTH + CHUNK_LENGTH)
+                .put(Byte.MAX_VALUE) //tombstone is off
+                .put(md5Hash) //chunk hash
+                .putInt(chunk.array().length) //chunk length
+                .put(chunk); //chunk itself
+
+        byteBuffer.position(0);
+
+        if (condamnedIndex.isEmpty()) {
+            long chunkFirstBytePosition = fileChannel.size() + AUX_CHUNK_INFO_LENGTH;
+            while (byteBuffer.hasRemaining()) {
+                fileChannel.write(byteBuffer, fileChannel.size());
+            }
+            mainIndex.put(md5HashAsLong, new IndexEntry(chunkFirstBytePosition, chunkLength));
+
+        } else {
+            LongObjectCursor<IndexEntry> cursor = condamnedIndex.iterator().next();
+            IndexEntry entry = cursor.value;
+
+            while (byteBuffer.hasRemaining()) {
+                fileChannel.write(byteBuffer, entry.getChunkPosition() - 13l);
             }
 
-            if (condamnedIndex.containsKey(md5HashAsLong)) {
-                IndexEntry entry = condamnedIndex.get(md5HashAsLong);
-                long tombstonePosition = entry.getChunkPosition() - AUX_CHUNK_INFO_LENGTH;
-                fileChannel.write(ByteBuffer.allocate(1).put(Byte.MAX_VALUE), tombstonePosition);
-                mainIndex.put(md5HashAsLong, condamnedIndex.remove(md5HashAsLong));
-                return;
-            }
+            condamnedIndex.remove(cursor.key);
 
-            ByteBuffer byteBuffer = ByteBuffer.allocate(AUX_CHUNK_INFO_LENGTH + CHUNK_LENGTH)
-                    .put(Byte.MAX_VALUE) //tombstone is off
-                    .put(md5Hash) //chunk hash
-                    .putInt(chunk.array().length) //chunk length
-                    .put(chunk); //chunk itself
+            entry.setChunkLength(chunkLength);
+            mainIndex.put(md5HashAsLong, entry);
 
-            byteBuffer.position(0);
-
-            if (condamnedIndex.isEmpty()) {
-                long chunkFirstBytePosition = fileChannel.size() + AUX_CHUNK_INFO_LENGTH;
-                while (byteBuffer.hasRemaining()) {
-                    fileChannel.write(byteBuffer, fileChannel.size());
-                }
-                mainIndex.put(md5HashAsLong, new IndexEntry(chunkFirstBytePosition, chunkLength));
-
-            } else {
-                LongObjectCursor<IndexEntry> cursor = condamnedIndex.iterator().next();
-                IndexEntry entry = cursor.value;
-
-                while (byteBuffer.hasRemaining()) {
-                    fileChannel.write(byteBuffer, entry.getChunkPosition() - 13l);
-                }
-
-                condamnedIndex.remove(cursor.key);
-
-                entry.setChunkLength(chunkLength);
-                mainIndex.put(md5HashAsLong, entry);
-
-            }
-
-        } catch (IOException ex) {
-            log.error("Oops!", ex);
         }
     }
 
     @Override
-    public ByteBuffer read(ByteBuffer md5Hash) {
-        try {
-            long key = md5Hash.getLong(0);
-            if (mainIndex.containsKey(key)) {
-                IndexEntry indexEntry = mainIndex.get(key);
-                ByteBuffer buffer = ByteBuffer.allocate(indexEntry.getChunkLength());
-                fileChannel.read(buffer, indexEntry.getChunkPosition());
-                return buffer;
-            }
-        } catch (IOException ex) {
-            log.error("Oops!", ex);
+    public ByteBuffer read(ByteBuffer md5Hash) throws IOException {
+        long key = md5Hash.getLong(0);
+        if (mainIndex.containsKey(key)) {
+            IndexEntry indexEntry = mainIndex.get(key);
+            ByteBuffer buffer = ByteBuffer.allocate(indexEntry.getChunkLength());
+            fileChannel.read(buffer, indexEntry.getChunkPosition());
+            return buffer;
+        } else {
+            return null;
         }
-        return null;
     }
 
     @Override
-    public synchronized void delete(ByteBuffer md5Hash) {
+    public synchronized void delete(ByteBuffer md5Hash) throws IOException {
         long md5HashAsLong = md5Hash.getLong(0);
         IndexEntry indexEntry = mainIndex.get(md5HashAsLong);
 
         if (indexEntry != null) {
-            try {
-                long tombstonePosition = indexEntry.getChunkPosition() - AUX_CHUNK_INFO_LENGTH;
-                fileChannel.write(ByteBuffer.allocate(1).put(Byte.MIN_VALUE), tombstonePosition);
-                condamnedIndex.put(md5HashAsLong, mainIndex.remove(md5HashAsLong));
-
-            } catch (IOException ex) {
-                log.error("Oops!", ex);
-            }
+            long tombstonePosition = indexEntry.getChunkPosition() - AUX_CHUNK_INFO_LENGTH;
+            fileChannel.write(ByteBuffer.allocate(1).put(Byte.MIN_VALUE), tombstonePosition);
+            condamnedIndex.put(md5HashAsLong, mainIndex.remove(md5HashAsLong));
         }
     }
 
     @Override
-    public void loadExistedStorage(int parallelProcessesNumber) {
+    public void loadExistedStorage() throws IOException {
         log.info("Start loading data from existed database file.");
 
         ByteBuffer buffer = ByteBuffer.allocate(AUX_CHUNK_INFO_LENGTH);
         long chunksSuccessfullyLoaded = 0;
         long position = 0;
 
-        try {
-            while (fileChannel.read(buffer, position) > 0) {
-                buffer.position(0);
+        while (fileChannel.read(buffer, position) > 0) {
+            buffer.position(0);
 
-                byte tombstone = buffer.get();
-                long md5HashAsLong = buffer.getLong();
-                int chunkLength = buffer.getInt();
-                long chunkPosition = position + AUX_CHUNK_INFO_LENGTH;
+            byte tombstone = buffer.get();
+            long md5HashAsLong = buffer.getLong();
+            int chunkLength = buffer.getInt();
+            long chunkPosition = position + AUX_CHUNK_INFO_LENGTH;
 
-                IndexEntry indexEntry = new IndexEntry(chunkPosition, chunkLength);
+            IndexEntry indexEntry = new IndexEntry(chunkPosition, chunkLength);
 
-                if (tombstone == Byte.MAX_VALUE) {
-                    mainIndex.put(md5HashAsLong, indexEntry);
-                } else {
-                    condamnedIndex.put(md5HashAsLong, indexEntry);
-                }
+            if (tombstone == Byte.MAX_VALUE) {
+                mainIndex.put(md5HashAsLong, indexEntry);
+            } else {
+                condamnedIndex.put(md5HashAsLong, indexEntry);
+            }
 
-                chunksSuccessfullyLoaded++;
+            position = chunkPosition + CHUNK_LENGTH;
+            buffer.clear();
 
-                if (chunksSuccessfullyLoaded % 1000 == 0) {
-                    log.info("{} chunks were successfully loaded", chunksSuccessfullyLoaded);
-                }
+            chunksSuccessfullyLoaded++;
+            if (chunksSuccessfullyLoaded % 1000 == 0) {
+                log.info("{} chunks were successfully loaded", chunksSuccessfullyLoaded);
+            }
+        }//while
 
-                position = chunkPosition + CHUNK_LENGTH;
+        log.info("{} chunks were successfully loaded", chunksSuccessfullyLoaded);
 
-                buffer = ByteBuffer.allocate(AUX_CHUNK_INFO_LENGTH);
-            }//while
-        } catch (IOException ex) {
-            log.error("I can`t process existed database file:", ex);
-        }
     }//loadExistedStorage
 }

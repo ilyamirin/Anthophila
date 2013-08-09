@@ -1,5 +1,6 @@
 package me.ilyamirin.anthophila;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
 /**
@@ -10,11 +11,11 @@ public interface Storage {
 
     boolean contains(ByteBuffer md5Hash);
 
-    void delete(ByteBuffer md5Hash);
+    void delete(ByteBuffer md5Hash) throws IOException;
 
-    void append(ByteBuffer md5Hash, ByteBuffer chunk);
+    void append(ByteBuffer md5Hash, ByteBuffer chunk) throws IOException;
 
-    ByteBuffer read(ByteBuffer md5Hash);
+    ByteBuffer read(ByteBuffer md5Hash) throws IOException;
 
-    void loadExistedStorage(int parallelProcessesNumber);
+    void loadExistedStorage() throws IOException;
 }

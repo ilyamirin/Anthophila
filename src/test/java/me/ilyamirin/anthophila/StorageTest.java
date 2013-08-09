@@ -95,6 +95,7 @@ public class StorageTest {
         final AtomicInteger passedRequests = new AtomicInteger(0);
         final AtomicInteger chunksDeletedCounter = new AtomicInteger(0);
         final Map<Long, ByteBuffer> existedKeys = Collections.synchronizedMap(new HashMap<Long, ByteBuffer>());
+        final Map<Long, ByteBuffer> existedValues = Collections.synchronizedMap(new HashMap<Long, ByteBuffer>());
 
         for (int i = 0; i < cuncurrentClientsNumber; i++) {
             Runnable runnable = new Runnable() {
@@ -109,29 +110,34 @@ public class StorageTest {
                         chunk = ByteBuffer.allocate(StorageImpl.CHUNK_LENGTH);
                         r.nextBytes(chunk.array());
 
-                        storage.append(md5Hash, chunk);
+                        try {
+                            storage.append(md5Hash, chunk);
 
-                        if (!storage.contains(md5Hash)) {
-                            log.error("storage does not contains {}", md5Hash);
-                            log.info("Assertion Errors Count {}", assertionErrorsCount.incrementAndGet());
-                        } else if (!chunk.equals(storage.read(md5Hash))) {
-                            log.error("returned value does not equal to original.");
-                            log.info("Assertion Errors Count {}", assertionErrorsCount.incrementAndGet());
-                        }
-
-                        if (r.nextBoolean()) {
-                            storage.delete(md5Hash);
-                            if (storage.contains(md5Hash)) {
-                                log.error("storage contains deleted key {}", md5Hash);
+                            if (!storage.contains(md5Hash)) {
+                                log.error("storage does not contains {}", md5Hash);
                                 log.info("Assertion Errors Count {}", assertionErrorsCount.incrementAndGet());
-                            } else if (storage.read(md5Hash) != null) {
-                                log.error("Storage returned deleted value.");
+                            } else if (!chunk.equals(storage.read(md5Hash))) {
+                                log.error("returned value does not equal to original.");
                                 log.info("Assertion Errors Count {}", assertionErrorsCount.incrementAndGet());
-                            } else {
-                                chunksDeletedCounter.incrementAndGet();
                             }
-                        } else {
-                            existedKeys.put(md5Hash.getLong(0), md5Hash);
+
+                            if (r.nextBoolean()) {
+                                storage.delete(md5Hash);
+                                if (storage.contains(md5Hash)) {
+                                    log.error("storage contains deleted key {}", md5Hash);
+                                    log.info("Assertion Errors Count {}", assertionErrorsCount.incrementAndGet());
+                                } else if (storage.read(md5Hash) != null) {
+                                    log.error("Storage returned deleted value.");
+                                    log.info("Assertion Errors Count {}", assertionErrorsCount.incrementAndGet());
+                                } else {
+                                    chunksDeletedCounter.incrementAndGet();
+                                }
+                            } else {
+                                existedKeys.put(md5Hash.getLong(0), md5Hash);
+                                existedValues.put(md5Hash.getLong(0), chunk);
+                            }
+                        } catch (IOException ioe) {
+                            log.error("Oops!", ioe);
                         }
 
                         counter++;
@@ -159,24 +165,24 @@ public class StorageTest {
 
         setUp();
 
-        log.info("{}",aFile.length());
-
-        log.info("Lets start new storage and reload database.");
-        storage.loadExistedStorage(4);
-        log.info("Database reloading has done.");
+        storage.loadExistedStorage();
 
         int counter = 0;
         for (Map.Entry<Long, ByteBuffer> entry : existedKeys.entrySet()) {
             assertTrue(storage.contains(entry.getValue()));
+
             ByteBuffer result = storage.read(entry.getValue());
+
             assertNotNull(result);
-            //assertEquals(entry.getValue(), result);
+            assertEquals(existedValues.get(entry.getKey()), result);
 
             counter++;
             if (counter % cuncurrentRequestsNumber == 0) {
                 log.info("{} chunks were successfully checked", counter);
             }
         }//for
+
+        log.info("{} chunks were successfully checked", counter);
 
     }//basicOpsParallelTest
 }
