@@ -15,4 +15,6 @@ public interface Storage {
     void append(ByteBuffer md5Hash, ByteBuffer chunk);
 
     ByteBuffer read(ByteBuffer md5Hash);
+
+    void loadExistedStorage(int parallelProcessesNumber);
 }

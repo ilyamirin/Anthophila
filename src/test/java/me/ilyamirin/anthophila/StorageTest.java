@@ -1,18 +1,24 @@
 package me.ilyamirin.anthophila;
 
+import com.google.common.hash.HashFunction;
+import com.google.common.hash.Hasher;
+import com.google.common.hash.Hashing;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.HashSet;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import static junit.framework.Assert.*;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 /**
@@ -24,28 +30,32 @@ public class StorageTest {
 
     private Random r = new Random();
     private Storage storage;
-    private File file;
+    private RandomAccessFile aFile;
 
-    @Before
-    public void setUp() throws Exception {
-        file = new File("test.bin");
+    public void cleanStorageFile() throws IOException {
+        File file = new File("test.bin");
         if (file.exists()) {
             file.delete();
         }
         file.createNewFile();
-        RandomAccessFile aFile = new RandomAccessFile("test.bin", "rw");
+    }
+
+    public void setUp() throws IOException {
+        if (aFile != null) {
+            aFile.close();
+        }
+        aFile = new RandomAccessFile("test.bin", "rw");
         storage = new StorageImpl(aFile.getChannel());
     }
 
-    @After
-    public void tearDown() throws Exception {
-    }
-
     @Test
-    public void basicOpsTest() {
+    public void basicOpsTest() throws IOException {
+        cleanStorageFile();
+        setUp();
+
         ByteBuffer md5Hash = ByteBuffer.allocate(8);
         r.nextBytes(md5Hash.array());
-        ByteBuffer chunk = ByteBuffer.allocate(StorageImpl.MAX_CHUNK_LENGTH);
+        ByteBuffer chunk = ByteBuffer.allocate(StorageImpl.CHUNK_LENGTH);
         r.nextBytes(chunk.array());
 
         storage.append(md5Hash, chunk);
@@ -53,7 +63,7 @@ public class StorageTest {
         assertTrue(storage.contains(md5Hash));
         assertTrue(chunk.equals(storage.read(md5Hash)));
 
-        chunk = ByteBuffer.allocate(StorageImpl.MAX_CHUNK_LENGTH / 2);
+        chunk = ByteBuffer.allocate(StorageImpl.CHUNK_LENGTH / 2);
         r.nextBytes(md5Hash.array());
         r.nextBytes(chunk.array());
 
@@ -62,24 +72,28 @@ public class StorageTest {
         assertTrue(storage.contains(md5Hash));
         assertTrue(chunk.equals(storage.read(md5Hash)));
 
-        assertEquals((StorageImpl.MAX_CHUNK_LENGTH * 2) + (2 * 13), file.length());
+        assertEquals((StorageImpl.CHUNK_LENGTH * 2) + (2 * 13), aFile.length());
 
         storage.delete(md5Hash);
 
         assertFalse(storage.contains(md5Hash));
         assertNull(storage.read(md5Hash));
 
-        assertEquals((StorageImpl.MAX_CHUNK_LENGTH * 2) + (2 * 13), file.length());
+        assertEquals((StorageImpl.CHUNK_LENGTH * 2) + (2 * 13), aFile.length());
     }
 
     @Test
-    public void basicOpsParallelTest() throws InterruptedException {
+    public void basicOpsParallelTest() throws InterruptedException, FileNotFoundException, IOException {
+        cleanStorageFile();
+        setUp();
+
         int cuncurrentClientsNumber = 10;
         final int cuncurrentRequestsNumber = 1000;
         final CountDownLatch latch = new CountDownLatch(cuncurrentClientsNumber);
         final AtomicInteger assertionErrorsCount = new AtomicInteger(0);
         final AtomicInteger passedRequests = new AtomicInteger(0);
         final AtomicInteger chunksDeletedCounter = new AtomicInteger(0);
+        final Map<Long, ByteBuffer> existedKeys = Collections.synchronizedMap(new HashMap<Long, ByteBuffer>());
 
         for (int i = 0; i < cuncurrentClientsNumber; i++) {
             Runnable runnable = new Runnable() {
@@ -91,7 +105,7 @@ public class StorageTest {
                     while (counter < cuncurrentRequestsNumber) {
                         md5Hash = ByteBuffer.allocate(8);
                         r.nextBytes(md5Hash.array());
-                        chunk = ByteBuffer.allocate(StorageImpl.MAX_CHUNK_LENGTH);
+                        chunk = ByteBuffer.allocate(StorageImpl.CHUNK_LENGTH);
                         r.nextBytes(chunk.array());
 
                         storage.append(md5Hash, chunk);
@@ -115,6 +129,8 @@ public class StorageTest {
                             } else {
                                 chunksDeletedCounter.incrementAndGet();
                             }
+                        } else {
+                            existedKeys.put(md5Hash.getLong(0), md5Hash);
                         }
 
                         counter++;
@@ -138,6 +154,26 @@ public class StorageTest {
 
         long expectedSpace = (65536 + 13) * (cuncurrentClientsNumber * cuncurrentRequestsNumber
                 - chunksDeletedCounter.get());
-        assertTrue((file.length() - expectedSpace) == (65536 + 13) || file.length() == expectedSpace);
-    }
+        assertTrue((aFile.length() - expectedSpace) == (65536 + 13) || aFile.length() == expectedSpace);
+
+        setUp();
+
+        log.info("Lets start new storage and reload database.");
+        storage.loadExistedStorage(4);
+        log.info("Database reloading has done.");
+
+        int counter = 0;
+        for (Map.Entry<Long, ByteBuffer> entry : existedKeys.entrySet()) {
+            assertTrue(storage.contains(entry.getValue()));
+            ByteBuffer result = storage.read(entry.getValue());
+            assertNotNull(result);
+            //assertEquals(entry.getValue(), result);
+
+            counter++;
+            if (counter % cuncurrentRequestsNumber == 0) {
+                log.info("{} chunks were successfully checked", counter);
+            }
+        }//for
+
+    }//basicOpsParallelTest
 }
