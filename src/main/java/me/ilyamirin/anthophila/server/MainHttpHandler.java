@@ -1,4 +1,4 @@
-package me.ilyamirin.anthophila;
+package me.ilyamirin.anthophila.server;
 
 import java.nio.ByteBuffer;
 import lombok.NonNull;
@@ -59,6 +59,7 @@ public class MainHttpHandler extends HttpHandler {
 
         } else {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
+            
         }
-    }
+    }//service
 }

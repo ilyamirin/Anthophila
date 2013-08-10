@@ -1,4 +1,4 @@
-package me.ilyamirin.anthophila;
+package me.ilyamirin.anthophila.server;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

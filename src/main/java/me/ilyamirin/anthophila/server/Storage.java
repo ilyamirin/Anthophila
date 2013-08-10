@@ -1,4 +1,4 @@
-package me.ilyamirin.anthophila;
+package me.ilyamirin.anthophila.server;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
