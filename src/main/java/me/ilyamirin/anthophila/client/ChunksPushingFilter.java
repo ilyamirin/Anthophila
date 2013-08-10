@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import me.ilyamirin.anthophila.server.Server;
 import org.glassfish.grizzly.Buffer;
@@ -30,9 +31,11 @@ public class ChunksPushingFilter extends BaseFilter {
     @NonNull
     private final String host;
     @NonNull
-    private FutureImpl<Map<Long, Boolean>> completeFuture;
+    private FutureImpl<Map<Long, Byte>> completeFuture;
     //private volatile FileChannel output;
     //private volatile int bytesDownloaded;
+    @Setter
+    private ByteBuffer byteBuffer;
 
     @Override
     public NextAction handleConnect(FilterChainContext ctx) throws IOException {
@@ -45,6 +48,8 @@ public class ChunksPushingFilter extends BaseFilter {
                 .chunked(true)
                 .build();
 
+        ctx.setMessage(byteBuffer);
+
         ctx.write(httpRequest);
 
         return ctx.getStopAction();
@@ -56,21 +61,17 @@ public class ChunksPushingFilter extends BaseFilter {
             final HttpContent httpContent = (HttpContent) ctx.getMessage();
             final Buffer buffer = httpContent.getContent();
 
-            Map<Long, Boolean> result = Maps.newHashMap();
+            Map<Long, Byte> result = Maps.newHashMap();
 
             if (buffer.remaining() > 0) {
                 ByteBuffer byteBuffer = buffer.toByteBuffer();
                 int position = 0;
-                while (byteBuffer.hasRemaining()) {
+                while (byteBuffer.hasRemaining() && position < byteBuffer.capacity()) {
                     long md5Hash = byteBuffer.getLong(position);
                     position += 8;
                     byte resultForChunk = byteBuffer.get(position);
                     position++;
-                    if (resultForChunk == Byte.MAX_VALUE) {
-                        result.put(md5Hash, Boolean.TRUE);
-                    } else {
-                        result.put(md5Hash, Boolean.FALSE);
-                    }
+                    result.put(md5Hash, resultForChunk);
                 }
                 buffer.dispose();
             }

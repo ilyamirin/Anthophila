@@ -68,24 +68,30 @@ public class IntegrationTest {
             assertTrue(socket.isConnected());
         }
 
-        Map<ByteBuffer, ByteBuffer> hashesWithChunks = Maps.newHashMap();
+        Map<Long, ByteBuffer> hashesWithChunks = Maps.newHashMap();
 
         ByteBuffer md5Hash; ByteBuffer chunk;
         for (int i = 0; i < 10; i++) {
             md5Hash = ByteBuffer.allocate(8);
             r.nextBytes(md5Hash.array());
-            md5Hash.position(0);
 
             chunk = ByteBuffer.allocate(StorageImpl.CHUNK_LENGTH);
             r.nextBytes(chunk.array());
-            chunk.position(0);
 
-            hashesWithChunks.put(md5Hash, chunk);
+            hashesWithChunks.put(md5Hash.getLong(0), chunk);
         }
 
         Client client = new Client(host, port, 5);
         client.init();
-        client.sendChunks(hashesWithChunks);
+
+        Map<Long, Byte> result = client.sendChunks(hashesWithChunks);
+
+        assertEquals(result.size(), hashesWithChunks.size());
+        
+        for (Map.Entry<Long, Byte> entry : result.entrySet()) {
+            assertTrue(hashesWithChunks.containsKey(entry.getKey()));
+            assertEquals(Byte.MAX_VALUE, hashesWithChunks.get(entry.getKey()));
+        }
 
         client.close();
         server.stop();

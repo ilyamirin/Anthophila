@@ -34,7 +34,7 @@ public class Client {
     @NonNull
     private long timeoutInSeconds;
     private TCPNIOTransport transport;
-    private FutureImpl<Map<Long, Boolean>> completeFuture = SafeFutureImpl.create();
+    private FutureImpl<Map<Long, Byte>> completeFuture = SafeFutureImpl.create();
 
     public void init() throws IOException {
         FilterChainBuilder clientFilterChainBuilder = FilterChainBuilder.stateless();
@@ -48,7 +48,7 @@ public class Client {
         transport.start();
     }
 
-    public Map<Long, Boolean> sendChunks(Map<ByteBuffer, ByteBuffer> hashesWithChunks) throws IOException {
+    public Map<Long, Byte> sendChunks(Map<Long, ByteBuffer> hashesWithChunks) throws IOException {
         Connection connection = null;
         Future<Connection> connectFuture = transport.connect(host, port);
 
