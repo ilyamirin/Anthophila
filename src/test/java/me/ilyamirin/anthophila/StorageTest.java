@@ -14,6 +14,7 @@ import java.io.RandomAccessFile;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -69,7 +70,7 @@ public class StorageTest {
         storage.append(md5Hash, chunk);
 
         assertTrue(storage.contains(md5Hash));
-        assertTrue(chunk.equals(storage.read(md5Hash)));
+        assertTrue(Arrays.equals(chunk.array(), storage.read(md5Hash).array()));
 
         chunk = ByteBuffer.allocate(StorageImpl.CHUNK_LENGTH / 2);
         r.nextBytes(md5Hash.array());
@@ -78,7 +79,7 @@ public class StorageTest {
         storage.append(md5Hash, chunk);
 
         assertTrue(storage.contains(md5Hash));
-        assertTrue(chunk.equals(storage.read(md5Hash)));
+        assertTrue(Arrays.equals(chunk.array(), storage.read(md5Hash).array()));
 
         assertEquals((StorageImpl.CHUNK_LENGTH * 2) + (2 * 13), aFile.length());
 
@@ -123,7 +124,7 @@ public class StorageTest {
                             if (!storage.contains(md5Hash)) {
                                 log.error("storage does not contains {}", md5Hash);
                                 log.info("Assertion Errors Count {}", assertionErrorsCount.incrementAndGet());
-                            } else if (!chunk.equals(storage.read(md5Hash))) {
+                            } else if (!Arrays.equals(chunk.array(), storage.read(md5Hash).array())) {
                                 log.error("returned value does not equal to original.");
                                 log.info("Assertion Errors Count {}", assertionErrorsCount.incrementAndGet());
                             }
@@ -181,7 +182,7 @@ public class StorageTest {
             ByteBuffer result = storage.read(entry.getValue());
 
             assertNotNull(result);
-            assertEquals(existedValues.get(entry.getKey()), result);
+            assertTrue(Arrays.equals(existedValues.get(entry.getKey()).array(), result.array()));
 
             counter++;
             if (counter % cuncurrentRequestsNumber == 0) {

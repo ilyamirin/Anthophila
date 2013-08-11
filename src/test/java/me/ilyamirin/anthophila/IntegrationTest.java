@@ -12,10 +12,12 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -23,6 +25,8 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import static junit.framework.Assert.*;
 import lombok.extern.slf4j.Slf4j;
 import me.ilyamirin.anthophila.client.Client;
@@ -54,46 +58,43 @@ public class IntegrationTest {
     public void simpleTest() throws IOException {
         cleanStorageFile();
 
-        String host = "localhost"; Integer port = 7621;
+        String host = "127.0.0.1";
+        Integer port = 7621;
 
         Map<String, Object> params = Maps.newHashMap();
         params.put(Server.ServerParams.PATH_TO_STORAGE, "test.bin");
         params.put(Server.ServerParams.HOST, host);
         params.put(Server.ServerParams.PORT, port);
 
-        Server server = new Server();
-        server.start(params);
+        Server server = new Server(params);
+        Thread thread = new Thread(server);
+        thread.start();
 
-        try (Socket socket = new Socket(host, port)) {
-            assertTrue(socket.isConnected());
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException ex) {
         }
 
-        Map<Long, ByteBuffer> hashesWithChunks = Maps.newHashMap();
+        byte[] md5Hash = new byte[Storage.MD5_HASH_LENGTH];
+        byte[] chunk = new byte[Storage.CHUNK_LENGTH];
 
-        ByteBuffer md5Hash; ByteBuffer chunk;
-        for (int i = 0; i < 10; i++) {
-            md5Hash = ByteBuffer.allocate(8);
-            r.nextBytes(md5Hash.array());
+        Client client = Client.newClient(host, port, 10);
 
-            chunk = ByteBuffer.allocate(StorageImpl.CHUNK_LENGTH);
-            r.nextBytes(chunk.array());
+        assertTrue(client.isConnected());
 
-            hashesWithChunks.put(md5Hash.getLong(0), chunk);
-        }
+        int counter = 10;
+        while (client.isConnected() && counter > 0) {
+            r.nextBytes(md5Hash);
+            r.nextBytes(chunk);
 
-        Client client = new Client(host, port, 5);
-        client.init();
+            assertTrue(client.push(md5Hash, chunk));
 
-        Map<Long, Byte> result = client.sendChunks(hashesWithChunks);
+            assertTrue(Arrays.equals(chunk, client.pull(md5Hash)));
 
-        assertEquals(result.size(), hashesWithChunks.size());
-        
-        for (Map.Entry<Long, Byte> entry : result.entrySet()) {
-            assertTrue(hashesWithChunks.containsKey(entry.getKey()));
-            assertEquals(Byte.MAX_VALUE, hashesWithChunks.get(entry.getKey()));
-        }
+            counter--;
+
+        }//while
 
         client.close();
-        server.stop();
     }
 }

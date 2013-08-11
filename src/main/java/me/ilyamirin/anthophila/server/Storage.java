@@ -9,6 +9,11 @@ import java.nio.ByteBuffer;
  */
 public interface Storage {
 
+    public static final int CHUNK_LENGTH = 65536;
+    public static final int MD5_HASH_LENGTH = 8;
+    public static final int AUX_CHUNK_INFO_LENGTH = 13;
+
+
     boolean contains(ByteBuffer md5Hash);
 
     void delete(ByteBuffer md5Hash) throws IOException;

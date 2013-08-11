@@ -17,8 +17,6 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class StorageImpl implements Storage {
 
-    public static final int CHUNK_LENGTH = 65536;
-    public static final int AUX_CHUNK_INFO_LENGTH = 13;
     @NonNull
     private FileChannel fileChannel;
     private LongObjectOpenHashMap<IndexEntry> mainIndex = new LongObjectOpenHashMap<>();
@@ -48,9 +46,9 @@ public class StorageImpl implements Storage {
 
         ByteBuffer byteBuffer = ByteBuffer.allocate(AUX_CHUNK_INFO_LENGTH + CHUNK_LENGTH)
                 .put(Byte.MAX_VALUE) //tombstone is off
-                .put(md5Hash) //chunk hash
+                .put(md5Hash.array()) //chunk hash
                 .putInt(chunk.array().length) //chunk length
-                .put(chunk); //chunk itself
+                .put(chunk.array()); //chunk itself
 
         byteBuffer.position(0);
 
