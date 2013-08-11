@@ -82,7 +82,7 @@ public class IntegrationTest {
 
         assertTrue(client.isConnected());
 
-        int counter = 10;
+        int counter = 10000;
         while (client.isConnected() && counter > 0) {
             r.nextBytes(md5Hash);
             r.nextBytes(chunk);
@@ -91,10 +91,20 @@ public class IntegrationTest {
 
             assertTrue(Arrays.equals(chunk, client.pull(md5Hash)));
 
+            if (r.nextBoolean()) {
+                assertTrue(client.remove(md5Hash));
+                assertNull(client.pull(md5Hash));
+            }
+
             counter--;
+            if (counter % 100 == 0) {
+                log.info("{} requests remain.", counter);
+            }
 
         }//while
 
+        //assertEquals(host, host);
+
         client.close();
-    }
+    }//simpleTest
 }

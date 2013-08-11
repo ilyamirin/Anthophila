@@ -8,6 +8,8 @@ import java.util.Arrays;
 import java.util.Map;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,38 +31,33 @@ public class Server implements Runnable {
 
         public static final byte PUSHING = Byte.MAX_VALUE;
         public static final byte PULLING = Byte.MAX_VALUE - 1;
+        public static final byte REMOVING = Byte.MAX_VALUE - 2;
     }
 
     public class OperationResultStatus {
 
         public static final byte SUCCESS = Byte.MAX_VALUE;
+        public static final byte CHUNK_WAS_NOT_FOUND = Byte.MAX_VALUE - 1;
+        public static final byte FAILURE = Byte.MIN_VALUE;
     }
     private ServerSocketChannel serverSocketChannel;
     private Storage storage;
-    private ByteBuffer typeOfOperation = ByteBuffer.allocate(1);
-    private ByteBuffer md5Hash = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
-    private ByteBuffer chunkLength = ByteBuffer.allocate(4);
-    private ByteBuffer chunk;
-    private ByteBuffer response;
     @NonNull
     private Map<String, Object> params;
 
     protected void push(SocketChannel channel) throws IOException {
-        log.info("Start chunk pushing operation.");
-
-        md5Hash.position(0);
+        ByteBuffer md5Hash = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
         channel.read(md5Hash);
 
-        chunkLength.position(0);
+        ByteBuffer chunkLength = ByteBuffer.allocate(4);
         channel.read(chunkLength);
 
-        chunk = ByteBuffer.allocate(chunkLength.getInt(0));
+        ByteBuffer chunk = ByteBuffer.allocate(chunkLength.getInt(0));
         channel.read(chunk);
 
         storage.append(md5Hash, chunk);
 
-        response = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH + 1);
-        response.position(0);
+        ByteBuffer response = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH + 1);
         response.put(md5Hash.array());
         response.put(OperationResultStatus.SUCCESS);
 
@@ -69,19 +66,38 @@ public class Server implements Runnable {
     }
 
     protected void pull(SocketChannel channel) throws IOException {
-        log.info("Start chunk pulling operation.");
-
-        md5Hash.position(0);
+        ByteBuffer md5Hash = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
         channel.read(md5Hash);
 
-        chunk = storage.read(md5Hash);
+        log.info("server {}", md5Hash.array());
+        ByteBuffer chunk = storage.read(md5Hash);
 
-        response = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH + 1 + 4 + chunk.capacity());
+        ByteBuffer response;
+        if (chunk != null) {
+            response = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH + 1 + 4 + chunk.capacity());
+            response.put(md5Hash.array());
+            response.put(OperationResultStatus.SUCCESS);
+            response.putInt(chunk.capacity());
+            response.put(chunk.array());
+        } else {
+            response = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH + 1);
+            response.put(md5Hash.array());
+            response.put(OperationResultStatus.CHUNK_WAS_NOT_FOUND);
+        }
+
         response.position(0);
+        channel.write(response);
+    }
+
+    protected void remove(SocketChannel channel) throws IOException {
+        ByteBuffer md5Hash = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
+        channel.read(md5Hash);
+
+        storage.delete(md5Hash);
+
+        ByteBuffer response = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH + 1);
         response.put(md5Hash.array());
         response.put(OperationResultStatus.SUCCESS);
-        response.putInt(chunk.capacity());
-        response.put(chunk.array());
 
         response.position(0);
         channel.write(response);
@@ -99,7 +115,7 @@ public class Server implements Runnable {
 
             serverSocketChannel = ServerSocketChannel.open();
             serverSocketChannel.bind(new InetSocketAddress(host, port), 10);
-            //serverSocketChannel.configureBlocking(false);
+            serverSocketChannel.configureBlocking(false);
 
             log.info("Waiting for a client...");
 
@@ -109,6 +125,7 @@ public class Server implements Runnable {
                     continue;
                 }
 
+                ByteBuffer typeOfOperation = ByteBuffer.allocate(1);
                 while (channel.isConnected()) {
                     typeOfOperation.position(0);
                     channel.read(typeOfOperation);
@@ -120,7 +137,11 @@ public class Server implements Runnable {
                     } else if (operationType == OperationTypes.PULLING) {
                         pull(channel);
 
+                    } else if (operationType == OperationTypes.REMOVING) {
+                        remove(channel);
+
                     } else {
+
                     }
                 }//while
 

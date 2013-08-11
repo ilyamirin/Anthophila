@@ -21,19 +21,15 @@ public class Client {
 
     @Setter
     private SocketChannel socketChannel;
-    private ByteBuffer md5HashBuffer = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
-    private ByteBuffer chunkLengthBuffer = ByteBuffer.allocate(4);
-    private ByteBuffer resultBuffer = ByteBuffer.allocate(1);
-    private ByteBuffer chunkBuffer;
-    private ByteBuffer request;
 
     private Client() {
     }
 
     public static Client newClient(String host, int port, long timeoutInSeconds) throws IOException {
         Client client = new Client();
-        client.setSocketChannel(SocketChannel.open(new InetSocketAddress(host, port)));
+        SocketChannel socketChannel = SocketChannel.open(new InetSocketAddress(host, port));
         //socketChannel.configureBlocking(false);
+        client.setSocketChannel(socketChannel);
         return client;
     }
 
@@ -46,26 +42,25 @@ public class Client {
             socketChannel.connect(socketChannel.getLocalAddress());
         }
 
-        request = ByteBuffer.allocate(1 + Storage.MD5_HASH_LENGTH + 4 + chunk.length);
-        request.position(0);
-
+        ByteBuffer request = ByteBuffer.allocate(1 + Storage.MD5_HASH_LENGTH + 4 + chunk.length);
         request.put(Server.OperationTypes.PUSHING); //push chunk operation
         request.put(md5Hash);
         request.putInt(chunk.length);
         request.put(chunk);
-        request.position(0);
 
+        request.position(0);
         socketChannel.write(request);
 
-        md5HashBuffer.position(0); resultBuffer.position(0);
-
+        ByteBuffer md5HashBuffer = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
+        md5HashBuffer.position(0);
         socketChannel.read(md5HashBuffer);
         if (!Arrays.equals(md5Hash, md5HashBuffer.array())) {
             throw new IOException("Server returned another md5 hash.");
         }
 
+        ByteBuffer resultBuffer = ByteBuffer.allocate(1);
+        resultBuffer.position(0);
         socketChannel.read(resultBuffer);
-
         if (resultBuffer.get(0) == Server.OperationResultStatus.SUCCESS) {
             return true;
         } else {
@@ -78,15 +73,15 @@ public class Client {
             socketChannel.connect(socketChannel.getLocalAddress());
         }
 
-        request = ByteBuffer.allocate(1 + Storage.MD5_HASH_LENGTH);
-        request.position(0);
-
-        request.put(Server.OperationTypes.PULLING); //pull chunk operation
+        ByteBuffer request = ByteBuffer.allocate(1 + Storage.MD5_HASH_LENGTH);
+        request.put(Server.OperationTypes.PULLING);
         request.put(md5Hash);
-        request.position(0);
 
+        log.info("client {}", request.array());
+        request.position(0);
         socketChannel.write(request);
 
+        ByteBuffer md5HashBuffer = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
         md5HashBuffer.position(0);
         socketChannel.read(md5HashBuffer);
         if (!Arrays.equals(md5Hash, md5HashBuffer.array())) {
@@ -94,20 +89,55 @@ public class Client {
             throw new IOException("Server returned another md5 hash.");
         }
 
+        ByteBuffer resultBuffer = ByteBuffer.allocate(1);
         resultBuffer.position(0);
         socketChannel.read(resultBuffer);
-        if (resultBuffer.get(0) != Server.OperationResultStatus.SUCCESS) {
-            throw new IOException("Server did not resieve chunk.");
+        if (resultBuffer.get(0) == Server.OperationResultStatus.CHUNK_WAS_NOT_FOUND) {
+            return null;
+        } else if (resultBuffer.get(0) != Server.OperationResultStatus.SUCCESS) {
+            throw new IOException("Server could not return chunk.");
         }
 
+        ByteBuffer chunkLengthBuffer = ByteBuffer.allocate(4);
         chunkLengthBuffer.position(0);
         socketChannel.read(chunkLengthBuffer);
 
-        chunkBuffer = ByteBuffer.allocate(chunkLengthBuffer.getInt(0));
+        ByteBuffer chunkBuffer = ByteBuffer.allocate(chunkLengthBuffer.getInt(0));
         chunkBuffer.position(0);
         socketChannel.read(chunkBuffer);
 
         return chunkBuffer.array();
+
+    }//pull
+
+    public boolean remove(byte[] md5Hash) throws IOException {
+        if (!socketChannel.isConnected()) {
+            socketChannel.connect(socketChannel.getLocalAddress());
+        }
+
+        ByteBuffer request = ByteBuffer.allocate(1 + Storage.MD5_HASH_LENGTH);
+        request.put(Server.OperationTypes.REMOVING);
+        request.put(md5Hash);
+
+        request.position(0);
+        socketChannel.write(request);
+
+        ByteBuffer md5HashBuffer = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
+        md5HashBuffer.position(0);
+        socketChannel.read(md5HashBuffer);
+        if (!Arrays.equals(md5Hash, md5HashBuffer.array())) {
+            log.error("Server returned another md5 hash: {} {}", md5Hash, md5HashBuffer.array());
+            throw new IOException("Server returned another md5 hash.");
+        }
+
+        ByteBuffer resultBuffer = ByteBuffer.allocate(1);
+        resultBuffer.position(0);
+        socketChannel.read(resultBuffer);
+        if (resultBuffer.get(0) == Server.OperationResultStatus.SUCCESS) {
+            return true;
+        } else {
+            return false;
+        }
 
     }//pull
 
