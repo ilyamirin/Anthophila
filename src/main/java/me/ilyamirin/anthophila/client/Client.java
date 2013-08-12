@@ -57,15 +57,17 @@ public class Client {
         }
 
         ByteBuffer md5HashBuffer = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
-        md5HashBuffer.position(0);
-        socketChannel.read(md5HashBuffer);
+        while (md5HashBuffer.hasRemaining()) {
+            socketChannel.read(md5HashBuffer);
+        }
         if (!Arrays.equals(md5Hash, md5HashBuffer.array())) {
             throw new IOException("Server returned another md5 hash.");
         }
 
         ByteBuffer resultBuffer = ByteBuffer.allocate(1);
-        resultBuffer.position(0);
-        socketChannel.read(resultBuffer);
+        while (resultBuffer.hasRemaining()) {
+            socketChannel.read(resultBuffer);
+        }
         if (resultBuffer.get(0) == Server.OperationResultStatus.SUCCESS) {
             return true;
         } else {
@@ -88,16 +90,18 @@ public class Client {
         }
 
         ByteBuffer md5HashBuffer = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
-        md5HashBuffer.position(0);
-        socketChannel.read(md5HashBuffer);
+        while (md5HashBuffer.hasRemaining()) {
+            socketChannel.read(md5HashBuffer);
+        }
         if (!Arrays.equals(md5Hash, md5HashBuffer.array())) {
             log.error("Server returned another md5 hash: {} {}", md5Hash, md5HashBuffer.array());
             throw new IOException("Server returned another md5 hash.");
         }
 
         ByteBuffer resultBuffer = ByteBuffer.allocate(1);
-        resultBuffer.position(0);
-        socketChannel.read(resultBuffer);
+        while (resultBuffer.hasRemaining()) {
+            socketChannel.read(resultBuffer);
+        }
         if (resultBuffer.get(0) == Server.OperationResultStatus.CHUNK_WAS_NOT_FOUND) {
             return null;
         } else if (resultBuffer.get(0) != Server.OperationResultStatus.SUCCESS) {
@@ -105,12 +109,14 @@ public class Client {
         }
 
         ByteBuffer chunkLengthBuffer = ByteBuffer.allocate(4);
-        chunkLengthBuffer.position(0);
-        socketChannel.read(chunkLengthBuffer);
+        while (chunkLengthBuffer.hasRemaining()) {
+            socketChannel.read(chunkLengthBuffer);
+        }
 
         ByteBuffer chunkBuffer = ByteBuffer.allocate(chunkLengthBuffer.getInt(0));
-        chunkBuffer.position(0);
-        socketChannel.read(chunkBuffer);
+        while (chunkBuffer.hasRemaining()) {
+            socketChannel.read(chunkBuffer);
+        }
 
         return chunkBuffer.array();
 
@@ -131,16 +137,18 @@ public class Client {
         }
 
         ByteBuffer md5HashBuffer = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
-        md5HashBuffer.position(0);
-        socketChannel.read(md5HashBuffer);
+        while (md5HashBuffer.hasRemaining()) {
+            socketChannel.read(md5HashBuffer);
+        }
         if (!Arrays.equals(md5Hash, md5HashBuffer.array())) {
             log.error("Server returned another md5 hash: {} {}", md5Hash, md5HashBuffer.array());
             throw new IOException("Server returned another md5 hash.");
         }
 
         ByteBuffer resultBuffer = ByteBuffer.allocate(1);
-        resultBuffer.position(0);
-        socketChannel.read(resultBuffer);
+        while (resultBuffer.hasRemaining()) {
+            socketChannel.read(resultBuffer);
+        }
         if (resultBuffer.get(0) == Server.OperationResultStatus.SUCCESS) {
             return true;
         } else {

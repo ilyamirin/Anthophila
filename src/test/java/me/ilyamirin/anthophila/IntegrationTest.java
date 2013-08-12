@@ -88,17 +88,16 @@ public class IntegrationTest {
             r.nextBytes(chunk);
 
             assertTrue(client.push(md5Hash, chunk));
-
-            //assertTrue(Arrays.equals(chunk, client.pull(md5Hash)));
+            assertTrue(Arrays.equals(chunk, client.pull(md5Hash)));
 
             if (r.nextBoolean()) {
-              //  assertTrue(client.remove(md5Hash));
-               // assertNull(client.pull(md5Hash));
+                assertTrue(client.remove(md5Hash));
+                assertNull(client.pull(md5Hash));
             }
 
             counter--;
-            if (counter % 100 == 0) {
-                log.info("{} requests remain.", counter);
+            if (counter % 1000 == 0) {
+                log.info("{} requests quads remain.", counter);
             }
 
         }//while

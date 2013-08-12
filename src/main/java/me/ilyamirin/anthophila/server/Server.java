@@ -47,7 +47,9 @@ public class Server implements Runnable {
 
     protected void push(SocketChannel channel) throws IOException {
         ByteBuffer md5Hash = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
-        channel.read(md5Hash);
+        while (md5Hash.hasRemaining()) {
+            channel.read(md5Hash);
+        }
 
         ByteBuffer chunkLength = ByteBuffer.allocate(4);
         while (chunkLength.hasRemaining()) {
@@ -73,7 +75,9 @@ public class Server implements Runnable {
 
     protected void pull(SocketChannel channel) throws IOException {
         ByteBuffer md5Hash = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
-        channel.read(md5Hash);
+        while (md5Hash.hasRemaining()) {
+            channel.read(md5Hash);
+        }
 
         ByteBuffer chunk = storage.read(md5Hash);
 
@@ -98,7 +102,9 @@ public class Server implements Runnable {
 
     protected void remove(SocketChannel channel) throws IOException {
         ByteBuffer md5Hash = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
-        channel.read(md5Hash);
+        while (md5Hash.hasRemaining()) {
+            channel.read(md5Hash);
+        }
 
         storage.delete(md5Hash);
 
