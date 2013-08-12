@@ -20,16 +20,19 @@ import me.ilyamirin.anthophila.server.Storage;
 public class Client {
 
     @Setter
+    private int allowedRetries;
+    @Setter
     private SocketChannel socketChannel;
 
     private Client() {
     }
 
-    public static Client newClient(String host, int port, long timeoutInSeconds) throws IOException {
+    public static Client newClient(String host, int port, int allowedRetries, long timeoutInSeconds) throws IOException {
         Client client = new Client();
         SocketChannel socketChannel = SocketChannel.open(new InetSocketAddress(host, port));
         //socketChannel.configureBlocking(false);
         client.setSocketChannel(socketChannel);
+        client.setAllowedRetries(allowedRetries);
         return client;
     }
 
@@ -49,7 +52,9 @@ public class Client {
         request.put(chunk);
 
         request.position(0);
-        socketChannel.write(request);
+        while (request.hasRemaining()) {
+            socketChannel.write(request);
+        }
 
         ByteBuffer md5HashBuffer = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
         md5HashBuffer.position(0);
@@ -77,9 +82,10 @@ public class Client {
         request.put(Server.OperationTypes.PULLING);
         request.put(md5Hash);
 
-        log.info("client {}", request.array());
         request.position(0);
-        socketChannel.write(request);
+        while (request.hasRemaining()) {
+            socketChannel.write(request);
+        }
 
         ByteBuffer md5HashBuffer = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
         md5HashBuffer.position(0);
@@ -95,7 +101,7 @@ public class Client {
         if (resultBuffer.get(0) == Server.OperationResultStatus.CHUNK_WAS_NOT_FOUND) {
             return null;
         } else if (resultBuffer.get(0) != Server.OperationResultStatus.SUCCESS) {
-            throw new IOException("Server could not return chunk.");
+            throw new IOException("Server could not retrun chunk.");
         }
 
         ByteBuffer chunkLengthBuffer = ByteBuffer.allocate(4);
@@ -120,7 +126,9 @@ public class Client {
         request.put(md5Hash);
 
         request.position(0);
-        socketChannel.write(request);
+        while (request.hasRemaining()) {
+            socketChannel.write(request);
+        }
 
         ByteBuffer md5HashBuffer = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
         md5HashBuffer.position(0);

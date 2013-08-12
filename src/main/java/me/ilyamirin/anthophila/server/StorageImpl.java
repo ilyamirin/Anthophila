@@ -76,7 +76,7 @@ public class StorageImpl implements Storage {
     }
 
     @Override
-    public ByteBuffer read(ByteBuffer md5Hash) throws IOException {
+    public synchronized ByteBuffer read(ByteBuffer md5Hash) throws IOException {
         long key = md5Hash.getLong(0);
         if (mainIndex.containsKey(key)) {
             IndexEntry indexEntry = mainIndex.get(key);

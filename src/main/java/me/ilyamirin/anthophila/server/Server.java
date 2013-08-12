@@ -50,10 +50,14 @@ public class Server implements Runnable {
         channel.read(md5Hash);
 
         ByteBuffer chunkLength = ByteBuffer.allocate(4);
-        channel.read(chunkLength);
+        while (chunkLength.hasRemaining()) {
+            channel.read(chunkLength);
+        }
 
         ByteBuffer chunk = ByteBuffer.allocate(chunkLength.getInt(0));
-        channel.read(chunk);
+        while (chunk.hasRemaining()) {
+            channel.read(chunk);
+        }
 
         storage.append(md5Hash, chunk);
 
@@ -62,14 +66,15 @@ public class Server implements Runnable {
         response.put(OperationResultStatus.SUCCESS);
 
         response.position(0);
-        channel.write(response);
+        while (response.hasRemaining()) {
+            channel.write(response);
+        }
     }
 
     protected void pull(SocketChannel channel) throws IOException {
         ByteBuffer md5Hash = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
         channel.read(md5Hash);
 
-        log.info("server {}", md5Hash.array());
         ByteBuffer chunk = storage.read(md5Hash);
 
         ByteBuffer response;
@@ -86,7 +91,9 @@ public class Server implements Runnable {
         }
 
         response.position(0);
-        channel.write(response);
+        while (response.hasRemaining()) {
+            channel.write(response);
+        }
     }
 
     protected void remove(SocketChannel channel) throws IOException {
@@ -100,7 +107,9 @@ public class Server implements Runnable {
         response.put(OperationResultStatus.SUCCESS);
 
         response.position(0);
-        channel.write(response);
+        while (response.hasRemaining()) {
+            channel.write(response);
+        }
     }
 
     @Override
@@ -158,13 +167,5 @@ public class Server implements Runnable {
     }
 
     public static void main(String[] args) {
-
-        for (int i = 0; i < args.length; i += 2) {
-            String[] param = Arrays.copyOfRange(args, i, i + 2);
-            if (param[0].equals("--pathToStorage")) {
-                //accessFile
-            }
-        }
-
     }
 }
