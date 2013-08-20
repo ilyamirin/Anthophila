@@ -55,7 +55,7 @@ public class IntegrationTest {
     }
 
     @Test
-    public void simpleTest() throws IOException {
+    public void simpleTest() throws IOException, InterruptedException {
         cleanStorageFile();
 
         String host = "127.0.0.1";
@@ -75,34 +75,69 @@ public class IntegrationTest {
         } catch (InterruptedException ex) {
         }
 
-        byte[] md5Hash = new byte[Storage.MD5_HASH_LENGTH];
-        byte[] chunk = new byte[Storage.CHUNK_LENGTH];
-
-        Client client = Client.newClient(host, port, 3, 10);
+        final Client client = Client.newClient(host, port);
 
         assertTrue(client.isConnected());
 
-        int counter = 10000;
-        while (client.isConnected() && counter > 0) {
-            r.nextBytes(md5Hash);
-            r.nextBytes(chunk);
+        final int clientsNumber = 10;
+        final int requestsNumber = 1000;
+        final AtomicInteger errorsCounter = new AtomicInteger(0);
+        final AtomicInteger requestsPassed = new AtomicInteger(0);
+        final CountDownLatch latch = new CountDownLatch(clientsNumber);
 
-            assertTrue(client.push(md5Hash, chunk));
-            assertTrue(Arrays.equals(chunk, client.pull(md5Hash)));
+        for (int i = 0; i < clientsNumber; i++) {
+            new Thread() {
+                @Override
+                public void run() {
+                    byte[] md5Hash;
+                    byte[] chunk;
+                    for (int j = 0; j < requestsNumber; j++) {
+                        md5Hash = new byte[Storage.MD5_HASH_LENGTH];
+                        chunk = new byte[Storage.CHUNK_LENGTH];
+                        r.nextBytes(md5Hash);
+                        r.nextBytes(chunk);
 
-            if (r.nextBoolean()) {
-                assertTrue(client.remove(md5Hash));
-                assertNull(client.pull(md5Hash));
-            }
+                        try {
+                            client.push(md5Hash, chunk);
+                            if (!Arrays.equals(chunk, client.pull(md5Hash))) {
+                                throw new IOException("Returned result is incorrect.");
+                            }
 
-            counter--;
-            if (counter % 1000 == 0) {
-                log.info("{} requests quads remain.", counter);
-            }
+                        } catch (IOException ex) {
+                            log.error("Oops!", ex);
+                            errorsCounter.incrementAndGet();
+                        }
+
+                        if (r.nextBoolean()) {
+                            try {
+                                if (!client.remove(md5Hash)) {
+                                    throw new IOException("Client couldn`t remove chunk.");
+                                }
+                                if (client.pull(md5Hash) != null) {
+                                    throw new IOException("Client returned previously removed chunk.");
+                                }
+                            } catch (IOException exception) {
+                                errorsCounter.incrementAndGet();
+                                log.error("Oops!", exception);
+                            }
+                        }
+
+                        if (requestsPassed.incrementAndGet() % 1000 == 0) {
+                            log.info("{} requests quads passed.", requestsPassed.get());
+                        }
+
+                    }//for
+
+                    latch.countDown();
+
+                }//run
+            }.start();
 
         }//while
 
-        //assertEquals(host, host);
+        latch.await();
+
+        assertEquals(0, errorsCounter.get());
 
         client.close();
     }//simpleTest

@@ -20,19 +20,16 @@ import me.ilyamirin.anthophila.server.Storage;
 public class Client {
 
     @Setter
-    private int allowedRetries;
-    @Setter
     private SocketChannel socketChannel;
 
     private Client() {
     }
 
-    public static Client newClient(String host, int port, int allowedRetries, long timeoutInSeconds) throws IOException {
+    public static Client newClient(String host, int port) throws IOException {
         Client client = new Client();
         SocketChannel socketChannel = SocketChannel.open(new InetSocketAddress(host, port));
         //socketChannel.configureBlocking(false);
         client.setSocketChannel(socketChannel);
-        client.setAllowedRetries(allowedRetries);
         return client;
     }
 
@@ -40,7 +37,7 @@ public class Client {
         return socketChannel.isConnected();
     }
 
-    public boolean push(byte[] md5Hash, byte[] chunk) throws IOException {
+    public synchronized boolean push(byte[] md5Hash, byte[] chunk) throws IOException {
         if (!socketChannel.isConnected()) {
             socketChannel.connect(socketChannel.getLocalAddress());
         }
@@ -75,7 +72,7 @@ public class Client {
         }
     }//push
 
-    public byte[] pull(byte[] md5Hash) throws IOException {
+    public synchronized byte[] pull(byte[] md5Hash) throws IOException {
         if (!socketChannel.isConnected()) {
             socketChannel.connect(socketChannel.getLocalAddress());
         }
@@ -122,7 +119,7 @@ public class Client {
 
     }//pull
 
-    public boolean remove(byte[] md5Hash) throws IOException {
+    public synchronized boolean remove(byte[] md5Hash) throws IOException {
         if (!socketChannel.isConnected()) {
             socketChannel.connect(socketChannel.getLocalAddress());
         }
