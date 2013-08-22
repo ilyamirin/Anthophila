@@ -16,8 +16,8 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
-import me.ilyamirin.anthophila.server.Enigma;
-import me.ilyamirin.anthophila.server.Storage;
+import me.ilyamirin.anthophila.server.ServerEncryptor;
+import me.ilyamirin.anthophila.server.ServerStorage;
 import org.bouncycastle.util.Arrays;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -48,7 +48,7 @@ public class EnigmaTest {
         int keysNumber = 10;
 
         Set<String> oldKeys = Sets.newHashSet();
-        Map<Integer, String> newKeys = Enigma.generateKeys(keysNumber);
+        Map<Integer, String> newKeys = ServerEncryptor.generateKeys(keysNumber);
 
         assertEquals(keysNumber, newKeys.size());
 
@@ -67,7 +67,7 @@ public class EnigmaTest {
 
         fileWriter.flush();
 
-        final Enigma enigma = Enigma.loadFromFile(file.getPath());
+        final ServerEncryptor enigma = ServerEncryptor.loadFromFile(file.getPath());
 
         int processesNumber = 10;
         final int chunksPerProcess = 1000;
@@ -80,13 +80,13 @@ public class EnigmaTest {
             new Thread() {
                 @Override
                 public void run() {
-                    byte[] chunkMd5Hash = new byte[Storage.MD5_HASH_LENGTH];
-                    byte[] chunk = new byte[Storage.CHUNK_LENGTH];
+                    byte[] chunkMd5Hash = new byte[ServerStorage.MD5_HASH_LENGTH];
+                    byte[] chunk = new byte[ServerStorage.CHUNK_LENGTH];
                     for (int i = 0; i < chunksPerProcess; i++) {
                         r.nextBytes(chunkMd5Hash);
                         r.nextBytes(chunk);
                         try {
-                            Enigma.EncryptedChunk encryptedChunk = enigma.encrypt(ByteBuffer.wrap(chunk));
+                            ServerEncryptor.EncryptedChunk encryptedChunk = enigma.encrypt(ByteBuffer.wrap(chunk));
                             if (Arrays.areEqual(chunk, encryptedChunk.getChunk().array())) {
                                 throw new Exception("Enigma did not encrypt chunk");
                             }

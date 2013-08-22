@@ -9,7 +9,7 @@ import lombok.Data;
  */
 @Data
 @AllArgsConstructor
-public class IndexEntry {
+public class ServerIndexEntry {
 
     private long chunkPosition;
     private int chunkLength;

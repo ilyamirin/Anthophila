@@ -10,7 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import me.ilyamirin.anthophila.server.Server;
-import me.ilyamirin.anthophila.server.Storage;
+import me.ilyamirin.anthophila.server.ServerStorage;
 
 /**
  *
@@ -42,7 +42,7 @@ public class Client {
             socketChannel.connect(socketChannel.getLocalAddress());
         }
 
-        ByteBuffer request = ByteBuffer.allocate(1 + Storage.MD5_HASH_LENGTH + 4 + chunk.length);
+        ByteBuffer request = ByteBuffer.allocate(1 + ServerStorage.MD5_HASH_LENGTH + 4 + chunk.length);
         request.put(Server.OperationTypes.PUSHING); //push chunk operation
         request.put(md5Hash);
         request.putInt(chunk.length);
@@ -53,7 +53,7 @@ public class Client {
             socketChannel.write(request);
         }
 
-        ByteBuffer md5HashBuffer = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
+        ByteBuffer md5HashBuffer = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
         while (md5HashBuffer.hasRemaining()) {
             socketChannel.read(md5HashBuffer);
         }
@@ -77,7 +77,7 @@ public class Client {
             socketChannel.connect(socketChannel.getLocalAddress());
         }
 
-        ByteBuffer request = ByteBuffer.allocate(1 + Storage.MD5_HASH_LENGTH);
+        ByteBuffer request = ByteBuffer.allocate(1 + ServerStorage.MD5_HASH_LENGTH);
         request.put(Server.OperationTypes.PULLING);
         request.put(md5Hash);
 
@@ -86,7 +86,7 @@ public class Client {
             socketChannel.write(request);
         }
 
-        ByteBuffer md5HashBuffer = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
+        ByteBuffer md5HashBuffer = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
         while (md5HashBuffer.hasRemaining()) {
             socketChannel.read(md5HashBuffer);
         }
@@ -124,7 +124,7 @@ public class Client {
             socketChannel.connect(socketChannel.getLocalAddress());
         }
 
-        ByteBuffer request = ByteBuffer.allocate(1 + Storage.MD5_HASH_LENGTH);
+        ByteBuffer request = ByteBuffer.allocate(1 + ServerStorage.MD5_HASH_LENGTH);
         request.put(Server.OperationTypes.REMOVING);
         request.put(md5Hash);
 
@@ -133,7 +133,7 @@ public class Client {
             socketChannel.write(request);
         }
 
-        ByteBuffer md5HashBuffer = ByteBuffer.allocate(Storage.MD5_HASH_LENGTH);
+        ByteBuffer md5HashBuffer = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
         while (md5HashBuffer.hasRemaining()) {
             socketChannel.read(md5HashBuffer);
         }

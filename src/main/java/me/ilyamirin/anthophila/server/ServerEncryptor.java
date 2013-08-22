@@ -27,7 +27,7 @@ import org.bouncycastle.crypto.params.ParametersWithIV;
  *
  * @author ilyamirin
  */
-public class Enigma {
+public class ServerEncryptor {
 
     @Data
     @AllArgsConstructor
@@ -47,13 +47,13 @@ public class Enigma {
     private Map<Integer, String> keys;
     private List<Integer> newKeysHashes;
 
-    private Enigma(Map<Integer, String> oldKeys, Map<Integer, String> keys, List<Integer> newKeysHashes) {
+    private ServerEncryptor(Map<Integer, String> oldKeys, Map<Integer, String> keys, List<Integer> newKeysHashes) {
         this.oldKeys = oldKeys;
         this.keys = keys;
         this.newKeysHashes = newKeysHashes;
     }
 
-    public static Enigma newEnigma(Set<String> keySet, Set<String> oldKeySet) {
+    public static ServerEncryptor newEnigma(Set<String> keySet, Set<String> oldKeySet) {
         Map<Integer, String> oldKeys = Collections.synchronizedMap(new HashMap<Integer, String>());
         Map<Integer, String> keys = Collections.synchronizedMap(new HashMap<Integer, String>());
         List<Integer> newKeysHashes = Collections.synchronizedList(new ArrayList<Integer>());
@@ -68,10 +68,10 @@ public class Enigma {
             newKeysHashes.add(key.hashCode());
         }
 
-        return new Enigma(oldKeys, keys, newKeysHashes);
+        return new ServerEncryptor(oldKeys, keys, newKeysHashes);
     }
 
-    public static Enigma loadFromFile(String filename) throws IOException {
+    public static ServerEncryptor loadFromFile(String filename) throws IOException {
         FileReader fileReader = new FileReader(filename);
         Map<String, Set<String>> keys = gson.fromJson(fileReader, KEYS_JSON_TOKEN.getType());
         return newEnigma(keys.get("newKeys"), keys.get("oldKeys"));
@@ -97,7 +97,7 @@ public class Enigma {
         String key = keys.get(keyHash);
 
         //generate random IV
-        byte[] IV = new byte[Storage.IV_LENGTH];
+        byte[] IV = new byte[ServerStorage.IV_LENGTH];
         r.nextBytes(IV);
 
         StreamCipher cipher = new Salsa20Engine();

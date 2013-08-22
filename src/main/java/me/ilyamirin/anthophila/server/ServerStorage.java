@@ -8,8 +8,6 @@ import java.nio.channels.FileChannel;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import static me.ilyamirin.anthophila.server.Storage.ENCRYPTION_CHUNK_INFO_LENGTH;
-import static me.ilyamirin.anthophila.server.Storage.IV_LENGTH;
 
 /**
  *
@@ -17,23 +15,27 @@ import static me.ilyamirin.anthophila.server.Storage.IV_LENGTH;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class StorageImpl implements Storage {
+public class ServerStorage {
 
+    public static final int CHUNK_LENGTH = 65536;
+    public static final int MD5_HASH_LENGTH = 8; //long value
+    public static final int AUX_CHUNK_INFO_LENGTH = 1 + MD5_HASH_LENGTH + 4; //tombstone + hash + chunk length (int)
+    public static final int IV_LENGTH = 8; //IV for Salsa cipher
+    public static final int ENCRYPTION_CHUNK_INFO_LENGTH = 4 + IV_LENGTH; //cipher key has in int + IV
+    public static final int WHOLE_CHUNK_CELL_LENGTH = AUX_CHUNK_INFO_LENGTH + ENCRYPTION_CHUNK_INFO_LENGTH + CHUNK_LENGTH; //totel chunk necessarty space
     @NonNull
     private FileChannel fileChannel;
     @NonNull
-    private Enigma enigma;
+    private ServerEncryptor enigma;
     @NonNull
-    private Boolean isEncryptionModOn;
-    private LongObjectOpenHashMap<IndexEntry> mainIndex = new LongObjectOpenHashMap<>();
-    private LongObjectOpenHashMap<IndexEntry> condamnedIndex = new LongObjectOpenHashMap<>();
+    private Boolean isEncryptionOn;
+    private LongObjectOpenHashMap<ServerIndexEntry> mainIndex = new LongObjectOpenHashMap<>();
+    private LongObjectOpenHashMap<ServerIndexEntry> condamnedIndex = new LongObjectOpenHashMap<>();
 
-    @Override
     public boolean contains(ByteBuffer md5Hash) {
         return mainIndex.containsKey(md5Hash.getLong(0));
     }
 
-    @Override
     public synchronized void append(ByteBuffer md5Hash, ByteBuffer chunk) throws IOException {
         long md5HashAsLong = md5Hash.getLong(0);
         int chunkLength = chunk.array().length;
@@ -43,7 +45,7 @@ public class StorageImpl implements Storage {
         }
 
         if (condamnedIndex.containsKey(md5HashAsLong)) {
-            IndexEntry entry = condamnedIndex.get(md5HashAsLong);
+            ServerIndexEntry entry = condamnedIndex.get(md5HashAsLong);
             long tombstonePosition = entry.getChunkPosition() - AUX_CHUNK_INFO_LENGTH;
             fileChannel.write(ByteBuffer.allocate(1).put(Byte.MAX_VALUE), tombstonePosition);
             mainIndex.put(md5HashAsLong, condamnedIndex.remove(md5HashAsLong));
@@ -55,8 +57,8 @@ public class StorageImpl implements Storage {
                 .put(md5Hash.array()) //chunk hash
                 .putInt(chunk.array().length); //chunk length
 
-        if (isEncryptionModOn) {
-            Enigma.EncryptedChunk encryptedChunk = enigma.encrypt(chunk);
+        if (isEncryptionOn) {
+            ServerEncryptor.EncryptedChunk encryptedChunk = enigma.encrypt(chunk);
             byteBuffer
                     .putInt(encryptedChunk.getKeyHash()) //key hash
                     .put(encryptedChunk.getIV()) //IV
@@ -75,11 +77,11 @@ public class StorageImpl implements Storage {
             while (byteBuffer.hasRemaining()) {
                 fileChannel.write(byteBuffer, fileChannel.size());
             }
-            mainIndex.put(md5HashAsLong, new IndexEntry(chunkFirstBytePosition, chunkLength));
+            mainIndex.put(md5HashAsLong, new ServerIndexEntry(chunkFirstBytePosition, chunkLength));
 
         } else {
-            LongObjectCursor<IndexEntry> cursor = condamnedIndex.iterator().next();
-            IndexEntry entry = cursor.value;
+            LongObjectCursor<ServerIndexEntry> cursor = condamnedIndex.iterator().next();
+            ServerIndexEntry entry = cursor.value;
 
             while (byteBuffer.hasRemaining()) {
                 fileChannel.write(byteBuffer, entry.getChunkPosition() - 13l);
@@ -93,11 +95,10 @@ public class StorageImpl implements Storage {
         }
     }
 
-    @Override
     public synchronized ByteBuffer read(ByteBuffer md5Hash) throws IOException {
         long key = md5Hash.getLong(0);
         if (mainIndex.containsKey(key)) {
-            IndexEntry indexEntry = mainIndex.get(key);
+            ServerIndexEntry indexEntry = mainIndex.get(key);
 
             ByteBuffer buffer = ByteBuffer.allocate(ENCRYPTION_CHUNK_INFO_LENGTH);
             while (buffer.hasRemaining()) {
@@ -106,7 +107,8 @@ public class StorageImpl implements Storage {
 
             Integer keyHash = buffer.getInt(0);
             byte[] IV = new byte[IV_LENGTH];
-            buffer.position(4); buffer.get(IV);
+            buffer.position(4);
+            buffer.get(IV);
 
             ByteBuffer chunk = ByteBuffer.allocate(indexEntry.getChunkLength());
             while (chunk.hasRemaining()) {
@@ -114,7 +116,7 @@ public class StorageImpl implements Storage {
             }
 
             if (keyHash != 0) {
-                Enigma.EncryptedChunk encryptedChunk = new Enigma.EncryptedChunk(keyHash, IV, chunk);
+                ServerEncryptor.EncryptedChunk encryptedChunk = new ServerEncryptor.EncryptedChunk(keyHash, IV, chunk);
                 return enigma.decrypt(encryptedChunk);
             } else {
                 return chunk;
@@ -124,10 +126,9 @@ public class StorageImpl implements Storage {
         }
     }
 
-    @Override
     public synchronized void delete(ByteBuffer md5Hash) throws IOException {
         long md5HashAsLong = md5Hash.getLong(0);
-        IndexEntry indexEntry = mainIndex.get(md5HashAsLong);
+        ServerIndexEntry indexEntry = mainIndex.get(md5HashAsLong);
 
         if (indexEntry != null) {
             long tombstonePosition = indexEntry.getChunkPosition() - AUX_CHUNK_INFO_LENGTH;
@@ -136,7 +137,6 @@ public class StorageImpl implements Storage {
         }
     }
 
-    @Override
     public void loadExistedStorage() throws IOException {
         log.info("Start loading data from existed database file.");
 
@@ -152,7 +152,7 @@ public class StorageImpl implements Storage {
             int chunkLength = buffer.getInt();
             long chunkPosition = position + AUX_CHUNK_INFO_LENGTH;
 
-            IndexEntry indexEntry = new IndexEntry(chunkPosition, chunkLength);
+            ServerIndexEntry indexEntry = new ServerIndexEntry(chunkPosition, chunkLength);
 
             if (tombstone == Byte.MAX_VALUE) {
                 mainIndex.put(md5HashAsLong, indexEntry);
