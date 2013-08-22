@@ -8,6 +8,8 @@ import java.nio.channels.FileChannel;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import static me.ilyamirin.anthophila.server.Storage.ENCRYPTION_CHUNK_INFO_LENGTH;
+import static me.ilyamirin.anthophila.server.Storage.IV_LENGTH;
 
 /**
  *
@@ -19,6 +21,10 @@ public class StorageImpl implements Storage {
 
     @NonNull
     private FileChannel fileChannel;
+    @NonNull
+    private Enigma enigma;
+    @NonNull
+    private Boolean isEncryptionModOn;
     private LongObjectOpenHashMap<IndexEntry> mainIndex = new LongObjectOpenHashMap<>();
     private LongObjectOpenHashMap<IndexEntry> condamnedIndex = new LongObjectOpenHashMap<>();
 
@@ -44,11 +50,23 @@ public class StorageImpl implements Storage {
             return;
         }
 
-        ByteBuffer byteBuffer = ByteBuffer.allocate(AUX_CHUNK_INFO_LENGTH + CHUNK_LENGTH)
+        ByteBuffer byteBuffer = ByteBuffer.allocate(AUX_CHUNK_INFO_LENGTH + ENCRYPTION_CHUNK_INFO_LENGTH + CHUNK_LENGTH)
                 .put(Byte.MAX_VALUE) //tombstone is off
                 .put(md5Hash.array()) //chunk hash
-                .putInt(chunk.array().length) //chunk length
-                .put(chunk.array()); //chunk itself
+                .putInt(chunk.array().length); //chunk length
+
+        if (isEncryptionModOn) {
+            Enigma.EncryptedChunk encryptedChunk = enigma.encrypt(chunk);
+            byteBuffer
+                    .putInt(encryptedChunk.getKeyHash()) //key hash
+                    .put(encryptedChunk.getIV()) //IV
+                    .put(encryptedChunk.getChunk().array()); //encrypted chunk
+        } else {
+            byteBuffer
+                    .putInt(0) //empty key hash
+                    .put(new byte[IV_LENGTH]) //empty IV
+                    .put(chunk.array()); //chunk itself
+        }
 
         byteBuffer.position(0);
 
@@ -80,9 +98,27 @@ public class StorageImpl implements Storage {
         long key = md5Hash.getLong(0);
         if (mainIndex.containsKey(key)) {
             IndexEntry indexEntry = mainIndex.get(key);
-            ByteBuffer buffer = ByteBuffer.allocate(indexEntry.getChunkLength());
-            fileChannel.read(buffer, indexEntry.getChunkPosition());
-            return buffer;
+
+            ByteBuffer buffer = ByteBuffer.allocate(ENCRYPTION_CHUNK_INFO_LENGTH);
+            while (buffer.hasRemaining()) {
+                fileChannel.read(buffer, indexEntry.getChunkPosition());
+            }
+
+            Integer keyHash = buffer.getInt(0);
+            byte[] IV = new byte[IV_LENGTH];
+            buffer.position(4); buffer.get(IV);
+
+            ByteBuffer chunk = ByteBuffer.allocate(indexEntry.getChunkLength());
+            while (chunk.hasRemaining()) {
+                fileChannel.read(chunk, indexEntry.getChunkPosition() + ENCRYPTION_CHUNK_INFO_LENGTH);
+            }
+
+            if (keyHash != 0) {
+                Enigma.EncryptedChunk encryptedChunk = new Enigma.EncryptedChunk(keyHash, IV, chunk);
+                return enigma.decrypt(encryptedChunk);
+            } else {
+                return chunk;
+            }
         } else {
             return null;
         }
@@ -124,7 +160,7 @@ public class StorageImpl implements Storage {
                 condamnedIndex.put(md5HashAsLong, indexEntry);
             }
 
-            position = chunkPosition + CHUNK_LENGTH;
+            position = chunkPosition + ENCRYPTION_CHUNK_INFO_LENGTH + CHUNK_LENGTH;
             buffer.clear();
 
             chunksSuccessfullyLoaded++;

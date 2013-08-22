@@ -123,7 +123,7 @@ public class Server implements Runnable {
         try {
             String pathToStorage = (String) params.get(ServerParams.PATH_TO_STORAGE);
             RandomAccessFile accessFile = new RandomAccessFile(pathToStorage, "rw");
-            storage = new StorageImpl(accessFile.getChannel());
+            //storage = new StorageImpl(accessFile.getChannel());
 
             String host = (String) params.get(ServerParams.HOST);
             Integer port = (Integer) params.get(ServerParams.PORT);
