@@ -17,6 +17,7 @@ import java.util.Random;
 import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.crypto.CipherParameters;
 import org.bouncycastle.crypto.StreamCipher;
 import org.bouncycastle.crypto.engines.Salsa20Engine;
@@ -27,6 +28,7 @@ import org.bouncycastle.crypto.params.ParametersWithIV;
  *
  * @author ilyamirin
  */
+@Slf4j
 public class ServerEncryptor {
 
     @Data
@@ -41,7 +43,6 @@ public class ServerEncryptor {
     };
     public static final String SYMBOLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890";
 
-    private static Gson gson = new GsonBuilder().create();
     private Random r = new Random();
     private Map<Integer, String> oldKeys;
     private Map<Integer, String> keys;
@@ -53,7 +54,7 @@ public class ServerEncryptor {
         this.newKeysHashes = newKeysHashes;
     }
 
-    public static ServerEncryptor newEnigma(Set<String> keySet, Set<String> oldKeySet) {
+    public static ServerEncryptor newServerEncryptor(Set<String> keySet, Set<String> oldKeySet) {
         Map<Integer, String> oldKeys = Collections.synchronizedMap(new HashMap<Integer, String>());
         Map<Integer, String> keys = Collections.synchronizedMap(new HashMap<Integer, String>());
         List<Integer> newKeysHashes = Collections.synchronizedList(new ArrayList<Integer>());
@@ -71,17 +72,12 @@ public class ServerEncryptor {
         return new ServerEncryptor(oldKeys, keys, newKeysHashes);
     }
 
-    public static ServerEncryptor loadFromFile(String filename) throws IOException {
-        FileReader fileReader = new FileReader(filename);
-        Map<String, Set<String>> keys = gson.fromJson(fileReader, KEYS_JSON_TOKEN.getType());
-        return newEnigma(keys.get("newKeys"), keys.get("oldKeys"));
-    }
-
     public static Map<Integer, String> generateKeys(int number) {
-        Random r = new Random(number);
+        Random r = new Random(System.currentTimeMillis() - number * 2);
         Map<Integer, String> keys = Maps.newHashMap();
+        String key;
         for (int i = 0; i < number; i++) {
-            String key = "";
+            key = "";
             for (int j = 0; j < 256; j++) {
                 int symbolPos = r.nextInt(SYMBOLS.length());
                 key += SYMBOLS.substring(symbolPos, symbolPos + 1);
@@ -100,8 +96,9 @@ public class ServerEncryptor {
         byte[] IV = new byte[ServerStorage.IV_LENGTH];
         r.nextBytes(IV);
 
-        StreamCipher cipher = new Salsa20Engine();
         CipherParameters cipherParameters = new ParametersWithIV(new KeyParameter(key.getBytes()), IV);
+        
+        StreamCipher cipher = new Salsa20Engine();
         cipher.init(true, cipherParameters);
 
         byte[] result = new byte[chunk.capacity()];
@@ -114,8 +111,9 @@ public class ServerEncryptor {
         Integer keyHash = encryptedChunk.getKeyHash();
         String key = keys.containsKey(keyHash) ? keys.get(keyHash) : oldKeys.get(keyHash);
 
-        StreamCipher cipher = new Salsa20Engine();
         CipherParameters cipherParameters = new ParametersWithIV(new KeyParameter(key.getBytes()), encryptedChunk.getIV());
+
+        StreamCipher cipher = new Salsa20Engine();
         cipher.init(true, cipherParameters);
 
         byte[] result = new byte[encryptedChunk.getChunk().capacity()];

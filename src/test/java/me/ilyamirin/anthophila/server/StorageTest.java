@@ -1,5 +1,6 @@
 package me.ilyamirin.anthophila.server;
 
+import com.beust.jcommander.JCommander;
 import com.google.common.collect.Sets;
 import me.ilyamirin.anthophila.server.ServerStorage;
 import me.ilyamirin.anthophila.server.ServerStorage;
@@ -29,13 +30,17 @@ import org.junit.Test;
  */
 @Slf4j
 public class StorageTest {
+
     private Random r = new Random();
     private ServerStorage storage;
-    private RandomAccessFile aFile;
+    private File file;
+    private ServerEncryptor enigma = ServerEncryptor.newServerEncryptor(Sets.newHashSet(ServerEncryptor.generateKeys(10).values()), new HashSet<String>());
 
     @Before
     public void cleanStorageFile() throws IOException {
-        File file = new File("test.bin");
+        if (file == null){
+            file = new File("test.bin");
+        }
         if (file.exists()) {
             file.delete();
         }
@@ -43,17 +48,12 @@ public class StorageTest {
     }
 
     public void setUp(boolean isEnctiptionOn) throws IOException {
-        if (aFile != null) {
-            aFile.getChannel().close();
-            aFile.close();
-        }
-        aFile = new RandomAccessFile("test.bin", "rw");
-
-        ServerEncryptor enigma = ServerEncryptor.newEnigma(Sets.newHashSet(ServerEncryptor.generateKeys(10).values()), new HashSet<String>());
-        storage = new ServerStorage(aFile.getChannel(), enigma, isEnctiptionOn);
+        ServerParams params = new ServerParams();
+        JCommander jc = new JCommander(params, new String[]{"--encryption", "--storage", "test.bin"});
+        storage = ServerStorage.newServerStorage(params, enigma);
     }
 
-    //@Test
+    @Test
     public void basicOpsTest() throws IOException {
         cleanStorageFile();
         setUp(false);
@@ -77,14 +77,14 @@ public class StorageTest {
         assertTrue(storage.contains(md5Hash));
         assertTrue(Arrays.equals(chunk.array(), storage.read(md5Hash).array()));
 
-        assertEquals((ServerStorage.WHOLE_CHUNK_CELL_LENGTH * 2), aFile.length());
+        assertEquals((ServerStorage.WHOLE_CHUNK_CELL_LENGTH * 2), file.length());
 
         storage.delete(md5Hash);
 
         assertFalse(storage.contains(md5Hash));
         assertNull(storage.read(md5Hash));
 
-        assertEquals((ServerStorage.WHOLE_CHUNK_CELL_LENGTH * 2), aFile.length());
+        assertEquals((ServerStorage.WHOLE_CHUNK_CELL_LENGTH * 2), file.length());
     }
 
     @Test
@@ -113,12 +113,11 @@ public class StorageTest {
 
         long expectedSpace = ServerStorage.WHOLE_CHUNK_CELL_LENGTH * (cuncurrentClientsNumber * cuncurrentRequestsNumber
                 - chunksDeletedCounter.get());
-        assertTrue((aFile.length() - expectedSpace) == ServerStorage.WHOLE_CHUNK_CELL_LENGTH || aFile.length() == expectedSpace);
+        assertTrue((file.length() - expectedSpace) == ServerStorage.WHOLE_CHUNK_CELL_LENGTH || file.length() == expectedSpace);
 
         //try to reload database and ask about previously addad chunks
 
         setUp(false);
-        storage.loadExistedStorage();
 
         int counter = 0;
         for (Map.Entry<Long, ByteBuffer> entry : existedKeys.entrySet()) {
@@ -141,7 +140,6 @@ public class StorageTest {
 
         log.info("Turn encryption on and reload database.");
         setUp(true);
-        storage.loadExistedStorage();
 
         counter = 0;
         for (Map.Entry<Long, ByteBuffer> entry : existedKeys.entrySet()) {
@@ -154,7 +152,7 @@ public class StorageTest {
 
             counter++;
             if (counter % cuncurrentRequestsNumber == 0) {
-                log.info("{} chunks were successfully checked", counter);
+                log.info("{} previously added chunks were successfully checked", counter);
             }
         }//for
 
@@ -177,8 +175,8 @@ public class StorageTest {
         assertEquals(0, assertionErrorsCount.get());
 
         expectedSpace += ServerStorage.WHOLE_CHUNK_CELL_LENGTH * (cuncurrentClientsNumber * cuncurrentRequestsNumber - chunksDeletedCounter.get());
-        assertTrue((aFile.length() - expectedSpace) == ServerStorage.WHOLE_CHUNK_CELL_LENGTH || aFile.length() == expectedSpace);
+        log.info("{} {}", file.length(), expectedSpace);
+        assertTrue((file.length() - expectedSpace) == (ServerStorage.WHOLE_CHUNK_CELL_LENGTH * 2) || file.length() == expectedSpace);
 
     }//basicOpsParallelTest
-
 }

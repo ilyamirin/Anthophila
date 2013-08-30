@@ -2,7 +2,9 @@ package me.ilyamirin.anthophila.server;
 
 import com.carrotsearch.hppc.LongObjectOpenHashMap;
 import com.carrotsearch.hppc.cursors.LongObjectCursor;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import lombok.NonNull;
@@ -14,7 +16,6 @@ import lombok.extern.slf4j.Slf4j;
  * @author ilyamirin
  */
 @Slf4j
-@RequiredArgsConstructor
 public class ServerStorage {
 
     public static final int CHUNK_LENGTH = 65536;
@@ -23,14 +24,27 @@ public class ServerStorage {
     public static final int IV_LENGTH = 8; //IV for Salsa cipher
     public static final int ENCRYPTION_CHUNK_INFO_LENGTH = 4 + IV_LENGTH; //cipher key has in int + IV
     public static final int WHOLE_CHUNK_CELL_LENGTH = AUX_CHUNK_INFO_LENGTH + ENCRYPTION_CHUNK_INFO_LENGTH + CHUNK_LENGTH; //totel chunk necessarty space
-    @NonNull
     private FileChannel fileChannel;
-    @NonNull
     private ServerEncryptor enigma;
-    @NonNull
-    private Boolean isEncryptionOn;
+    private ServerParams params;
     private LongObjectOpenHashMap<ServerIndexEntry> mainIndex = new LongObjectOpenHashMap<>();
     private LongObjectOpenHashMap<ServerIndexEntry> condamnedIndex = new LongObjectOpenHashMap<>();
+
+    private ServerStorage(FileChannel fileChannel, ServerEncryptor enigma, ServerParams params) {
+        this.fileChannel = fileChannel;
+        this.enigma = enigma;
+        this.params = params;
+    }
+
+    public static ServerStorage newServerStorage(ServerParams params, ServerEncryptor serverEncryptor) throws IOException {
+        RandomAccessFile randomAccessFile = new RandomAccessFile(params.getPathToStorageFile(), "rw");
+        FileChannel fileChannel = randomAccessFile.getChannel();
+        ServerStorage serverStorage = new ServerStorage(fileChannel, serverEncryptor, params);
+        if (randomAccessFile.length() > 0) {
+            serverStorage.loadExistedStorage();
+        }
+        return serverStorage;
+    }
 
     public boolean contains(ByteBuffer md5Hash) {
         return mainIndex.containsKey(md5Hash.getLong(0));
@@ -57,7 +71,7 @@ public class ServerStorage {
                 .put(md5Hash.array()) //chunk hash
                 .putInt(chunk.array().length); //chunk length
 
-        if (isEncryptionOn) {
+        if (params.isEncrypted()) {
             ServerEncryptor.EncryptedChunk encryptedChunk = enigma.encrypt(chunk);
             byteBuffer
                     .putInt(encryptedChunk.getKeyHash()) //key hash
@@ -137,7 +151,7 @@ public class ServerStorage {
         }
     }
 
-    public void loadExistedStorage() throws IOException {
+    private void loadExistedStorage() throws IOException {
         log.info("Start loading data from existed database file.");
 
         ByteBuffer buffer = ByteBuffer.allocate(AUX_CHUNK_INFO_LENGTH);

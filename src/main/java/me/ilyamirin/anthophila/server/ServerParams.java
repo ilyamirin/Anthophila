@@ -1,5 +1,6 @@
 package me.ilyamirin.anthophila.server;
 
+import com.beust.jcommander.Parameter;
 import com.google.gson.Gson;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -12,14 +13,13 @@ import lombok.Data;
 @Data
 public class ServerParams {
 
-    private static final Gson GSON = new Gson();
+    @Parameter(names = "--storage", description = "Path to storage file.")
     private String pathToStorageFile;
-    private String host;
+    private String host = "localhost";
+    @Parameter(names = "--port", description = "On which port shoudl server connect?")
     private int port;
+    @Parameter(names = "--max-connections", description = "How many connections is available to connect simultaneously.")
     private int maxPendingConnections;
-
-    public static ServerParams loadFormFile(String filename) throws FileNotFoundException {
-        FileReader fileReader = new FileReader(filename);
-        return GSON.fromJson(fileReader, ServerParams.class);
-    }
+    @Parameter(names = "--encryption", description = "Is encrypt new chunks.")
+    private boolean isEncrypted;
 }

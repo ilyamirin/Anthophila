@@ -28,7 +28,7 @@ import org.junit.Before;
  * @author ilyamirin
  */
 @Slf4j
-public class EnigmaTest {
+public class EncryptorTest {
 
     private Random r = new Random();
     private Gson gson = new GsonBuilder().create();
@@ -67,7 +67,7 @@ public class EnigmaTest {
 
         fileWriter.flush();
 
-        final ServerEncryptor enigma = ServerEncryptor.loadFromFile(file.getPath());
+        final ServerEncryptor enigma = null;// = ServerEncryptor.loadFromFile(file.getPath());
 
         int processesNumber = 10;
         final int chunksPerProcess = 1000;
@@ -113,5 +113,9 @@ public class EnigmaTest {
 
         assertTrue(Sets.difference(usedKeys, newKeys.keySet()).isEmpty());
 
+        //move some keys to old and add new keys
+        //old keys should not use for encryption new chunks
+
+        //TODO::
     }//testEnigma
 }
