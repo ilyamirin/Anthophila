@@ -59,7 +59,6 @@ public class ServerEncryptor {
         Map<Integer, String> keys = Collections.synchronizedMap(new HashMap<Integer, String>());
         List<Integer> newKeysHashes = Collections.synchronizedList(new ArrayList<Integer>());
 
-        Integer hashCode;
         for (String oldKey : oldKeySet) {
             oldKeys.put(oldKey.hashCode(), oldKey);
         }
@@ -73,7 +72,7 @@ public class ServerEncryptor {
     }
 
     public static Map<Integer, String> generateKeys(int number) {
-        Random r = new Random(System.currentTimeMillis() - number * 2);
+        Random r = new Random();
         Map<Integer, String> keys = Maps.newHashMap();
         String key;
         for (int i = 0; i < number; i++) {
@@ -97,7 +96,7 @@ public class ServerEncryptor {
         r.nextBytes(IV);
 
         CipherParameters cipherParameters = new ParametersWithIV(new KeyParameter(key.getBytes()), IV);
-        
+
         StreamCipher cipher = new Salsa20Engine();
         cipher.init(true, cipherParameters);
 

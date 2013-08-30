@@ -7,6 +7,8 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ServerStorage {
 
     public static final int CHUNK_LENGTH = 65536;
-    public static final int MD5_HASH_LENGTH = 8; //long value
+    public static final int MD5_HASH_LENGTH = 16; //md5 hash length (16 bytes)
     public static final int AUX_CHUNK_INFO_LENGTH = 1 + MD5_HASH_LENGTH + 4; //tombstone + hash + chunk length (int)
     public static final int IV_LENGTH = 8; //IV for Salsa cipher
     public static final int ENCRYPTION_CHUNK_INFO_LENGTH = 4 + IV_LENGTH; //cipher key has in int + IV
@@ -27,8 +29,8 @@ public class ServerStorage {
     private FileChannel fileChannel;
     private ServerEncryptor enigma;
     private ServerParams params;
-    private LongObjectOpenHashMap<ServerIndexEntry> mainIndex = new LongObjectOpenHashMap<>();
-    private LongObjectOpenHashMap<ServerIndexEntry> condamnedIndex = new LongObjectOpenHashMap<>();
+    private ServerIndex mainIndex = new ServerIndex();
+    private List<ServerIndexEntry> condamnedIndex = new ArrayList<>();
 
     private ServerStorage(FileChannel fileChannel, ServerEncryptor enigma, ServerParams params) {
         this.fileChannel = fileChannel;
@@ -47,22 +49,13 @@ public class ServerStorage {
     }
 
     public boolean contains(ByteBuffer md5Hash) {
-        return mainIndex.containsKey(md5Hash.getLong(0));
+        return mainIndex.contains(md5Hash);
     }
 
     public synchronized void append(ByteBuffer md5Hash, ByteBuffer chunk) throws IOException {
-        long md5HashAsLong = md5Hash.getLong(0);
         int chunkLength = chunk.array().length;
 
-        if (mainIndex.containsKey(md5HashAsLong)) {
-            return;
-        }
-
-        if (condamnedIndex.containsKey(md5HashAsLong)) {
-            ServerIndexEntry entry = condamnedIndex.get(md5HashAsLong);
-            long tombstonePosition = entry.getChunkPosition() - AUX_CHUNK_INFO_LENGTH;
-            fileChannel.write(ByteBuffer.allocate(1).put(Byte.MAX_VALUE), tombstonePosition);
-            mainIndex.put(md5HashAsLong, condamnedIndex.remove(md5HashAsLong));
+        if (mainIndex.contains(md5Hash)) {
             return;
         }
 
@@ -88,66 +81,64 @@ public class ServerStorage {
 
         if (condamnedIndex.isEmpty()) {
             long chunkFirstBytePosition = fileChannel.size() + AUX_CHUNK_INFO_LENGTH;
+
             while (byteBuffer.hasRemaining()) {
                 fileChannel.write(byteBuffer, fileChannel.size());
             }
-            mainIndex.put(md5HashAsLong, new ServerIndexEntry(chunkFirstBytePosition, chunkLength));
+
+            mainIndex.put(md5Hash, new ServerIndexEntry(chunkFirstBytePosition, chunkLength));
 
         } else {
-            LongObjectCursor<ServerIndexEntry> cursor = condamnedIndex.iterator().next();
-            ServerIndexEntry entry = cursor.value;
+            ServerIndexEntry entry = condamnedIndex.get(0);
 
             while (byteBuffer.hasRemaining()) {
-                fileChannel.write(byteBuffer, entry.getChunkPosition() - 13l);
+                fileChannel.write(byteBuffer, entry.getChunkPosition() - AUX_CHUNK_INFO_LENGTH);
             }
 
-            condamnedIndex.remove(cursor.key);
+            condamnedIndex.remove(0);
 
             entry.setChunkLength(chunkLength);
-            mainIndex.put(md5HashAsLong, entry);
-
+            mainIndex.put(md5Hash, entry);
         }
     }
 
     public synchronized ByteBuffer read(ByteBuffer md5Hash) throws IOException {
-        long key = md5Hash.getLong(0);
-        if (mainIndex.containsKey(key)) {
-            ServerIndexEntry indexEntry = mainIndex.get(key);
+        ServerIndexEntry indexEntry = mainIndex.get(md5Hash);
 
-            ByteBuffer buffer = ByteBuffer.allocate(ENCRYPTION_CHUNK_INFO_LENGTH);
-            while (buffer.hasRemaining()) {
-                fileChannel.read(buffer, indexEntry.getChunkPosition());
-            }
-
-            Integer keyHash = buffer.getInt(0);
-            byte[] IV = new byte[IV_LENGTH];
-            buffer.position(4);
-            buffer.get(IV);
-
-            ByteBuffer chunk = ByteBuffer.allocate(indexEntry.getChunkLength());
-            while (chunk.hasRemaining()) {
-                fileChannel.read(chunk, indexEntry.getChunkPosition() + ENCRYPTION_CHUNK_INFO_LENGTH);
-            }
-
-            if (keyHash != 0) {
-                ServerEncryptor.EncryptedChunk encryptedChunk = new ServerEncryptor.EncryptedChunk(keyHash, IV, chunk);
-                return enigma.decrypt(encryptedChunk);
-            } else {
-                return chunk;
-            }
-        } else {
+        if (indexEntry == null) {
             return null;
+        }
+
+        ByteBuffer buffer = ByteBuffer.allocate(ENCRYPTION_CHUNK_INFO_LENGTH);
+        while (buffer.hasRemaining()) {
+            fileChannel.read(buffer, indexEntry.getChunkPosition());
+        }
+
+        Integer keyHash = buffer.getInt(0);
+        byte[] IV = new byte[IV_LENGTH];
+        buffer.position(4);
+        buffer.get(IV);
+
+        ByteBuffer chunk = ByteBuffer.allocate(indexEntry.getChunkLength());
+        while (chunk.hasRemaining()) {
+            fileChannel.read(chunk, indexEntry.getChunkPosition() + ENCRYPTION_CHUNK_INFO_LENGTH);
+        }
+
+        if (keyHash != 0) {
+            ServerEncryptor.EncryptedChunk encryptedChunk = new ServerEncryptor.EncryptedChunk(keyHash, IV, chunk);
+            return enigma.decrypt(encryptedChunk);
+        } else {
+            return chunk;
         }
     }
 
     public synchronized void delete(ByteBuffer md5Hash) throws IOException {
-        long md5HashAsLong = md5Hash.getLong(0);
-        ServerIndexEntry indexEntry = mainIndex.get(md5HashAsLong);
+        ServerIndexEntry indexEntry = mainIndex.get(md5Hash);
 
         if (indexEntry != null) {
             long tombstonePosition = indexEntry.getChunkPosition() - AUX_CHUNK_INFO_LENGTH;
             fileChannel.write(ByteBuffer.allocate(1).put(Byte.MIN_VALUE), tombstonePosition);
-            condamnedIndex.put(md5HashAsLong, mainIndex.remove(md5HashAsLong));
+            condamnedIndex.add(mainIndex.remove(md5Hash));
         }
     }
 
@@ -162,16 +153,18 @@ public class ServerStorage {
             buffer.position(0);
 
             byte tombstone = buffer.get();
-            long md5HashAsLong = buffer.getLong();
+            byte[] md5HashArray = new byte[16];
+            buffer.get(md5HashArray);
+            ByteBuffer md5Hash = ByteBuffer.wrap(md5HashArray);
             int chunkLength = buffer.getInt();
             long chunkPosition = position + AUX_CHUNK_INFO_LENGTH;
 
             ServerIndexEntry indexEntry = new ServerIndexEntry(chunkPosition, chunkLength);
 
             if (tombstone == Byte.MAX_VALUE) {
-                mainIndex.put(md5HashAsLong, indexEntry);
+                mainIndex.put(md5Hash, indexEntry);
             } else {
-                condamnedIndex.put(md5HashAsLong, indexEntry);
+                condamnedIndex.add(indexEntry);
             }
 
             position = chunkPosition + ENCRYPTION_CHUNK_INFO_LENGTH + CHUNK_LENGTH;

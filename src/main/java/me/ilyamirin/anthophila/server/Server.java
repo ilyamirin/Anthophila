@@ -1,5 +1,6 @@
 package me.ilyamirin.anthophila.server;
 
+import com.beust.jcommander.JCommander;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -107,7 +108,7 @@ public class Server extends Thread {
     @Override
     public void run() {
         try (ServerSocketChannel serverSocketChannel = ServerSocketChannel.open()) {
-            
+
             InetSocketAddress inetSocketAddress = new InetSocketAddress(params.getHost(), params.getPort());
             serverSocketChannel.bind(inetSocketAddress, params.getMaxPendingConnections());
             serverSocketChannel.configureBlocking(false);
@@ -148,4 +149,18 @@ public class Server extends Thread {
 
         }//try ServerSocketChannel
     }//run
+
+    public static void main(String... args) throws IOException {
+        ServerParams serverParams = new ServerParams();
+        JCommander jCommander = new JCommander(serverParams, args);
+
+        ServerEncryptor serverEncryptor = null;//ServerEncryptor.
+
+        ServerStorage serverStorage = ServerStorage.newServerStorage(serverParams, serverEncryptor);
+
+        Server server = new Server(serverStorage, serverParams);
+
+        server.start();
+    }
+
 }
