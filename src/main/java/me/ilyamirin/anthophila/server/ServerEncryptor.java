@@ -1,20 +1,6 @@
 package me.ilyamirin.anthophila.server;
 
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-import com.google.common.reflect.TypeToken;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import java.io.FileReader;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -24,8 +10,10 @@ import org.bouncycastle.crypto.engines.Salsa20Engine;
 import org.bouncycastle.crypto.params.KeyParameter;
 import org.bouncycastle.crypto.params.ParametersWithIV;
 
+import java.nio.ByteBuffer;
+import java.util.*;
+
 /**
- *
  * @author ilyamirin
  */
 @Slf4j
@@ -39,8 +27,7 @@ public class ServerEncryptor {
         private byte[] IV;
         private ByteBuffer chunk;
     }
-    public static final TypeToken<Map<String, Set<String>>> KEYS_JSON_TOKEN = new TypeToken<Map<String, Set<String>>>() {private static final long serialVersionUID = 1L;
-    };
+
     public static final String SYMBOLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890";
 
     private Random r = new Random();

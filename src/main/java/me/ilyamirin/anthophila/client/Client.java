@@ -1,19 +1,17 @@
 package me.ilyamirin.anthophila.client;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
-import java.nio.channels.SocketChannel;
-import java.util.Arrays;
-import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import me.ilyamirin.anthophila.server.Server;
 import me.ilyamirin.anthophila.server.ServerStorage;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
+import java.util.Arrays;
+
 /**
- *
  * @author ilyamirin
  */
 @Slf4j

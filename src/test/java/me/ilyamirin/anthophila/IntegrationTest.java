@@ -1,55 +1,60 @@
 package me.ilyamirin.anthophila;
 
-import me.ilyamirin.anthophila.server.ServerStorage;
-import me.ilyamirin.anthophila.server.Server;
-import com.google.common.collect.Maps;
-import java.io.File;
-import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicInteger;
-import static org.junit.Assert.*;
+import com.google.common.collect.Sets;
 import lombok.extern.slf4j.Slf4j;
 import me.ilyamirin.anthophila.client.Client;
+import me.ilyamirin.anthophila.server.Server;
+import me.ilyamirin.anthophila.server.ServerEncryptor;
+import me.ilyamirin.anthophila.server.ServerParams;
+import me.ilyamirin.anthophila.server.ServerStorage;
 import org.junit.Test;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 /**
- *
  * @author ilyamirin
  */
 @Slf4j
 public class IntegrationTest {
 
     private Random r = new Random();
-    private ServerStorage storage;
-    private RandomAccessFile aFile;
 
-    public void cleanStorageFile() throws IOException {
+    //TODO:: add encryption on, off, and on again
+    @Test
+    public void simpleTest() throws IOException, InterruptedException {
         File file = new File("test.bin");
         if (file.exists()) {
             file.delete();
         }
         file.createNewFile();
-    }
-
-    @Test
-    public void simpleTest() throws IOException, InterruptedException {
-        cleanStorageFile();
 
         String host = "127.0.0.1";
-        Integer port = 7621;
-/*
-        Map<String, Object> params = Maps.newHashMap();
-        params.put(Server.ServerParams.PATH_TO_STORAGE, "test.bin");
-        params.put(Server.ServerParams.HOST, host);
-        params.put(Server.ServerParams.PORT, port);
+        int port = 7621;
 
-        Server server = new Server(params);
-        Thread thread = new Thread(server);
-        thread.start();
+        ServerParams serverParams = new ServerParams();
+        serverParams.setEncrypted(true);
+        serverParams.setHost(host);
+        serverParams.setPort(port);
+        serverParams.setMaxPendingConnections(10);
+        serverParams.setPathToStorageFile(file.getAbsolutePath());
+
+        Set<String> newKeysSet = Sets.newHashSet(ServerEncryptor.generateKeys(64).values());
+        Set<String> oldKeysSet = Sets.newHashSet();
+        ServerEncryptor serverEncryptor = ServerEncryptor.newServerEncryptor(newKeysSet, oldKeysSet);
+
+        ServerStorage serverStorage = ServerStorage.newServerStorage(serverParams, serverEncryptor);
+
+        Server server = new Server(serverParams, serverStorage);
+        server.start();
 
         try {
             Thread.sleep(1000);
@@ -64,26 +69,27 @@ public class IntegrationTest {
         final int requestsNumber = 1000;
         final AtomicInteger errorsCounter = new AtomicInteger(0);
         final AtomicInteger requestsPassed = new AtomicInteger(0);
+        final AtomicInteger chunksStored = new AtomicInteger(0);
         final CountDownLatch latch = new CountDownLatch(clientsNumber);
+
+        long start = System.currentTimeMillis();
 
         for (int i = 0; i < clientsNumber; i++) {
             new Thread() {
                 @Override
                 public void run() {
-                    byte[] md5Hash;
-                    byte[] chunk;
+                    byte[] md5Hash = new byte[ServerStorage.MD5_HASH_LENGTH];
+                    byte[] chunk = new byte[ServerStorage.CHUNK_LENGTH];
+
                     for (int j = 0; j < requestsNumber; j++) {
-                        md5Hash = new byte[Storage.MD5_HASH_LENGTH];
-                        chunk = new byte[Storage.CHUNK_LENGTH];
                         r.nextBytes(md5Hash);
                         r.nextBytes(chunk);
 
                         try {
                             client.push(md5Hash, chunk);
                             if (!Arrays.equals(chunk, client.pull(md5Hash))) {
-                                throw new IOException("Returned result is incorrect.");
+                                log.error("Returned result is incorrect.");
                             }
-
                         } catch (IOException ex) {
                             log.error("Oops!", ex);
                             errorsCounter.incrementAndGet();
@@ -101,10 +107,12 @@ public class IntegrationTest {
                                 errorsCounter.incrementAndGet();
                                 log.error("Oops!", exception);
                             }
+                        } else {
+                            chunksStored.incrementAndGet();
                         }
 
                         if (requestsPassed.incrementAndGet() % 1000 == 0) {
-                            log.info("{} requests quads passed.", requestsPassed.get());
+                            log.info("{} pull/push/?remove/pull request quads passed.", requestsPassed.get());
                         }
 
                     }//for
@@ -119,7 +127,10 @@ public class IntegrationTest {
         latch.await();
 
         assertEquals(0, errorsCounter.get());
+        assertTrue(chunksStored.get() * ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH <= file.length());
 
-        client.close();*/
+        log.info("Test was passed for {} seconds.", (System.currentTimeMillis() - start) / 1000);
+
+        client.close();
     }//simpleTest
 }

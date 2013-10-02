@@ -1,20 +1,15 @@
 package me.ilyamirin.anthophila.server;
 
-import com.carrotsearch.hppc.LongObjectOpenHashMap;
-import com.carrotsearch.hppc.cursors.LongObjectCursor;
-import java.io.FileNotFoundException;
+import lombok.extern.slf4j.Slf4j;
+
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.List;
-import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 /**
- *
  * @author ilyamirin
  */
 @Slf4j
@@ -25,12 +20,12 @@ public class ServerStorage {
     public static final int AUX_CHUNK_INFO_LENGTH = 1 + MD5_HASH_LENGTH + 4; //tombstone + hash + chunk length (int)
     public static final int IV_LENGTH = 8; //IV for Salsa cipher
     public static final int ENCRYPTION_CHUNK_INFO_LENGTH = 4 + IV_LENGTH; //cipher key has in int + IV
-    public static final int WHOLE_CHUNK_CELL_LENGTH = AUX_CHUNK_INFO_LENGTH + ENCRYPTION_CHUNK_INFO_LENGTH + CHUNK_LENGTH; //totel chunk necessarty space
+    public static final int WHOLE_CHUNK_WITH_META_LENGTH = AUX_CHUNK_INFO_LENGTH + ENCRYPTION_CHUNK_INFO_LENGTH + CHUNK_LENGTH; //total chunk with meta space
     private FileChannel fileChannel;
     private ServerEncryptor enigma;
     private ServerParams params;
     private ServerIndex mainIndex = new ServerIndex();
-    private List<ServerIndexEntry> condamnedIndex = new ArrayList<>();
+    private List<ServerIndexEntry> condemnedIndex = new ArrayList<>();
 
     private ServerStorage(FileChannel fileChannel, ServerEncryptor enigma, ServerParams params) {
         this.fileChannel = fileChannel;
@@ -79,7 +74,7 @@ public class ServerStorage {
 
         byteBuffer.position(0);
 
-        if (condamnedIndex.isEmpty()) {
+        if (condemnedIndex.isEmpty()) {
             long chunkFirstBytePosition = fileChannel.size() + AUX_CHUNK_INFO_LENGTH;
 
             while (byteBuffer.hasRemaining()) {
@@ -89,13 +84,13 @@ public class ServerStorage {
             mainIndex.put(md5Hash, new ServerIndexEntry(chunkFirstBytePosition, chunkLength));
 
         } else {
-            ServerIndexEntry entry = condamnedIndex.get(0);
+            ServerIndexEntry entry = condemnedIndex.get(0);
 
             while (byteBuffer.hasRemaining()) {
                 fileChannel.write(byteBuffer, entry.getChunkPosition() - AUX_CHUNK_INFO_LENGTH);
             }
 
-            condamnedIndex.remove(0);
+            condemnedIndex.remove(0);
 
             entry.setChunkLength(chunkLength);
             mainIndex.put(md5Hash, entry);
@@ -138,7 +133,7 @@ public class ServerStorage {
         if (indexEntry != null) {
             long tombstonePosition = indexEntry.getChunkPosition() - AUX_CHUNK_INFO_LENGTH;
             fileChannel.write(ByteBuffer.allocate(1).put(Byte.MIN_VALUE), tombstonePosition);
-            condamnedIndex.add(mainIndex.remove(md5Hash));
+            condemnedIndex.add(mainIndex.remove(md5Hash));
         }
     }
 
@@ -164,7 +159,7 @@ public class ServerStorage {
             if (tombstone == Byte.MAX_VALUE) {
                 mainIndex.put(md5Hash, indexEntry);
             } else {
-                condamnedIndex.add(indexEntry);
+                condemnedIndex.add(indexEntry);
             }
 
             position = chunkPosition + ENCRYPTION_CHUNK_INFO_LENGTH + CHUNK_LENGTH;

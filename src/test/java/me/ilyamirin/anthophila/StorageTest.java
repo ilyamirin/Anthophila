@@ -2,35 +2,23 @@ package me.ilyamirin.anthophila;
 
 import com.beust.jcommander.JCommander;
 import com.google.common.collect.Sets;
-import me.ilyamirin.anthophila.server.ServerStorage;
-import me.ilyamirin.anthophila.server.ServerStorage;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicInteger;
-import static junit.framework.Assert.*;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import me.ilyamirin.anthophila.server.ServerEncryptor;
-import me.ilyamirin.anthophila.server.ServerEncryptor;
-import me.ilyamirin.anthophila.server.ServerIndex;
-import me.ilyamirin.anthophila.server.ServerIndexEntry;
-import me.ilyamirin.anthophila.server.ServerParams;
-import me.ilyamirin.anthophila.server.ServerStorage;
+import me.ilyamirin.anthophila.server.*;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static junit.framework.Assert.*;
+
 /**
- *
  * @author ilyamirin
  */
 @Slf4j
@@ -94,6 +82,7 @@ public class StorageTest {
             latch.countDown();
         }
     } //RandomChunksSender class
+
     private Random r = new Random();
     private ServerStorage storage;
     private File file;
@@ -176,14 +165,14 @@ public class StorageTest {
         assertTrue(storage.contains(md5Hash));
         assertTrue(Arrays.equals(chunk.array(), storage.read(md5Hash).array()));
 
-        assertEquals((ServerStorage.WHOLE_CHUNK_CELL_LENGTH * 2), file.length());
+        assertEquals((ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH * 2), file.length());
 
         storage.delete(md5Hash);
 
         assertFalse(storage.contains(md5Hash));
         assertNull(storage.read(md5Hash));
 
-        assertEquals((ServerStorage.WHOLE_CHUNK_CELL_LENGTH * 2), file.length());
+        assertEquals((ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH * 2), file.length());
     }
 
     @Test
@@ -210,9 +199,9 @@ public class StorageTest {
         assertEquals(0, assertionErrorsCount.get());
         log.info("{} have been passed for {} seconds.", cuncurrentClientsNumber * cuncurrentRequestsNumber, (System.currentTimeMillis() - start) / 1000);
 
-        long expectedSpace = ServerStorage.WHOLE_CHUNK_CELL_LENGTH * (cuncurrentClientsNumber * cuncurrentRequestsNumber
+        long expectedSpace = ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH * (cuncurrentClientsNumber * cuncurrentRequestsNumber
                 - chunksDeletedCounter.get());
-        assertTrue((file.length() - expectedSpace) == ServerStorage.WHOLE_CHUNK_CELL_LENGTH || file.length() == expectedSpace);
+        assertTrue((file.length() - expectedSpace) == ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH || file.length() == expectedSpace);
 
         //try to reload database and ask about previously addad chunks
 
@@ -269,13 +258,14 @@ public class StorageTest {
         }//for
 
         latch.await();
-        log.info("{} have been passed for {} seconds.", cuncurrentClientsNumber * cuncurrentRequestsNumber, (System.currentTimeMillis() - start) / 1000);
+        log.info("{} I/O operations have been passed for {} seconds.", cuncurrentClientsNumber * cuncurrentRequestsNumber, (System.currentTimeMillis() - start) / 1000);
 
         assertEquals(0, assertionErrorsCount.get());
 
-        expectedSpace += ServerStorage.WHOLE_CHUNK_CELL_LENGTH * (cuncurrentClientsNumber * cuncurrentRequestsNumber - chunksDeletedCounter.get());
-        log.info("used space={}, max expected space= {}", file.length(), expectedSpace);
-        //assertTrue(file.length() <= expectedSpace && file.length() >= (expectedSpace - ServerStorage.WHOLE_CHUNK_CELL_LENGTH * 4));
+        expectedSpace += ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH * (cuncurrentClientsNumber * cuncurrentRequestsNumber - chunksDeletedCounter.get());
+
+        log.info("Used space={}, max expected space= {}", file.length(), expectedSpace);
+        assertTrue(file.length() <= expectedSpace && file.length() >= (expectedSpace - ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH * 4));
 
     }//basicOpsParallelTest
 }

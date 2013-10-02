@@ -1,19 +1,17 @@
 package me.ilyamirin.anthophila.server;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
-import lombok.extern.slf4j.Slf4j;
 
 /**
- *
  * @author ilyamirin
  */
 @Slf4j
 public class ServerIndex {
 
-    private Random r = new Random();
     private Map<Long, Map<Long, ServerIndexEntry>> index = new HashMap<>();
 
     public boolean contains(ByteBuffer key) {
@@ -47,10 +45,6 @@ public class ServerIndex {
         } else {
             return null;
         }
-    }
-
-    boolean isEmpty() {
-        return index.isEmpty();
     }
 
     public ServerIndexEntry remove(ByteBuffer key) {

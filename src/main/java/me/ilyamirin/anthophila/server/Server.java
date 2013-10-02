@@ -1,14 +1,15 @@
 package me.ilyamirin.anthophila.server;
 
 import com.beust.jcommander.JCommander;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -27,10 +28,11 @@ public class Server extends Thread {
         public static final byte CHUNK_WAS_NOT_FOUND = Byte.MAX_VALUE - 1;
         public static final byte FAILURE = Byte.MIN_VALUE;
     }
-    @NonNull
-    private ServerStorage storage;
+
     @NonNull
     private ServerParams params;
+    @NonNull
+    private ServerStorage storage;
 
     protected void push(SocketChannel channel) throws IOException {
         ByteBuffer md5Hash = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
@@ -158,9 +160,9 @@ public class Server extends Thread {
 
         ServerStorage serverStorage = ServerStorage.newServerStorage(serverParams, serverEncryptor);
 
-        Server server = new Server(serverStorage, serverParams);
+        Server server = new Server(serverParams, serverStorage);
 
-        server.start();
+        //server.start();
     }
 
 }
