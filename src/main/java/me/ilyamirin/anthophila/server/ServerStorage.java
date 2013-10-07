@@ -22,21 +22,21 @@ public class ServerStorage {
     public static final int ENCRYPTION_CHUNK_INFO_LENGTH = 4 + IV_LENGTH; //cipher key has in int + IV
     public static final int WHOLE_CHUNK_WITH_META_LENGTH = AUX_CHUNK_INFO_LENGTH + ENCRYPTION_CHUNK_INFO_LENGTH + CHUNK_LENGTH; //total chunk with meta space
     private FileChannel fileChannel;
-    private ServerEncryptor enigma;
+    private ServerEnigma enigma;
     private ServerParams params;
     private ServerIndex mainIndex = new ServerIndex();
     private List<ServerIndexEntry> condemnedIndex = new ArrayList<>();
 
-    private ServerStorage(FileChannel fileChannel, ServerEncryptor enigma, ServerParams params) {
+    private ServerStorage(FileChannel fileChannel, ServerEnigma enigma, ServerParams params) {
         this.fileChannel = fileChannel;
         this.enigma = enigma;
         this.params = params;
     }
 
-    public static ServerStorage newServerStorage(ServerParams params, ServerEncryptor serverEncryptor) throws IOException {
+    public static ServerStorage newServerStorage(ServerParams params, ServerEnigma serverEnigma) throws IOException {
         RandomAccessFile randomAccessFile = new RandomAccessFile(params.getPathToStorageFile(), "rw");
         FileChannel fileChannel = randomAccessFile.getChannel();
-        ServerStorage serverStorage = new ServerStorage(fileChannel, serverEncryptor, params);
+        ServerStorage serverStorage = new ServerStorage(fileChannel, serverEnigma, params);
         if (randomAccessFile.length() > 0) {
             serverStorage.loadExistedStorage();
         }
@@ -59,8 +59,8 @@ public class ServerStorage {
                 .put(md5Hash.array()) //chunk hash
                 .putInt(chunk.array().length); //chunk length
 
-        if (params.isEncrypted()) {
-            ServerEncryptor.EncryptedChunk encryptedChunk = enigma.encrypt(chunk);
+        if (params.isEncrypt()) {
+            ServerEnigma.EncryptedChunk encryptedChunk = enigma.encrypt(chunk);
             byteBuffer
                     .putInt(encryptedChunk.getKeyHash()) //key hash
                     .put(encryptedChunk.getIV()) //IV
@@ -120,7 +120,7 @@ public class ServerStorage {
         }
 
         if (keyHash != 0) {
-            ServerEncryptor.EncryptedChunk encryptedChunk = new ServerEncryptor.EncryptedChunk(keyHash, IV, chunk);
+            ServerEnigma.EncryptedChunk encryptedChunk = new ServerEnigma.EncryptedChunk(keyHash, IV, chunk);
             return enigma.decrypt(encryptedChunk);
         } else {
             return chunk;

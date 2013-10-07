@@ -155,14 +155,11 @@ public class Server extends Thread {
     public static void main(String... args) throws IOException {
         ServerParams serverParams = new ServerParams();
         JCommander jCommander = new JCommander(serverParams, args);
-
-        ServerEncryptor serverEncryptor = null;//ServerEncryptor.
-
-        ServerStorage serverStorage = ServerStorage.newServerStorage(serverParams, serverEncryptor);
-
+        log.info("{}", serverParams);
+        ServerEnigma serverEnigma = ServerEnigma.newServerEnigma(serverParams);
+        ServerStorage serverStorage = ServerStorage.newServerStorage(serverParams, serverEnigma);
         Server server = new Server(serverParams, serverStorage);
-
-        //server.start();
+        server.start();
     }
 
 }

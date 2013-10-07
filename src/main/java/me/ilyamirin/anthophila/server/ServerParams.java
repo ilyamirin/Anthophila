@@ -15,8 +15,12 @@ public class ServerParams {
     private String host = "localhost";
     @Parameter(names = "--port", description = "On which port should server bind?")
     private int port;
-    @Parameter(names = "--maxConnections", description = "How many connections should should server pend simultaneously?")
-    private int maxPendingConnections;
-    @Parameter(names = "--encryption", description = "Should server encrypt new chunks?")
-    private boolean isEncrypted;
+    @Parameter(names = "--max-connections", description = "How many connections should should server pend simultaneously?")
+    private int maxPendingConnections = 10;
+    @Parameter(names = "--encrypt", description = "Should server encrypt new chunks?")
+    private boolean isEncrypt;
+    @Parameter(names = "--old-keys", description = "Keys for decryption only")
+    private String oldKeysFile = null;
+    @Parameter(names = "--new-keys", description = "Keys for both encryption/decryption")
+    private String newKeysFile = null;
 }

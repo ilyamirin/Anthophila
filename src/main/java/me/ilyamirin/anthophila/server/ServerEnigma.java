@@ -10,6 +10,9 @@ import org.bouncycastle.crypto.engines.Salsa20Engine;
 import org.bouncycastle.crypto.params.KeyParameter;
 import org.bouncycastle.crypto.params.ParametersWithIV;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -17,7 +20,7 @@ import java.util.*;
  * @author ilyamirin
  */
 @Slf4j
-public class ServerEncryptor {
+public class ServerEnigma {
 
     @Data
     @AllArgsConstructor
@@ -28,37 +31,45 @@ public class ServerEncryptor {
         private ByteBuffer chunk;
     }
 
-    public static final String SYMBOLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890";
-
     private Random r = new Random();
     private Map<Integer, String> oldKeys;
     private Map<Integer, String> keys;
     private List<Integer> newKeysHashes;
 
-    private ServerEncryptor(Map<Integer, String> oldKeys, Map<Integer, String> keys, List<Integer> newKeysHashes) {
+    private ServerEnigma(Map<Integer, String> oldKeys, Map<Integer, String> keys, List<Integer> newKeysHashes) {
         this.oldKeys = oldKeys;
         this.keys = keys;
         this.newKeysHashes = newKeysHashes;
     }
 
-    public static ServerEncryptor newServerEncryptor(Set<String> keySet, Set<String> oldKeySet) {
-        Map<Integer, String> oldKeys = Collections.synchronizedMap(new HashMap<Integer, String>());
+    public static ServerEnigma newServerEnigma(ServerParams serverParams) throws IOException {
+        BufferedReader bufferedReader = new BufferedReader(new FileReader(serverParams.getNewKeysFile()));
         Map<Integer, String> keys = Collections.synchronizedMap(new HashMap<Integer, String>());
         List<Integer> newKeysHashes = Collections.synchronizedList(new ArrayList<Integer>());
+        while (bufferedReader.ready()) {
+            String newKey = bufferedReader.readLine();
+            keys.put(newKey.hashCode(), newKey);
+            newKeysHashes.add(newKey.hashCode());
+        }
+        bufferedReader.close();
 
-        for (String oldKey : oldKeySet) {
-            oldKeys.put(oldKey.hashCode(), oldKey);
+        log.info("{} new keys were loaded for encryption.", keys.size());
+
+        Map<Integer, String> oldKeys = Collections.synchronizedMap(new HashMap<Integer, String>());
+        if (serverParams.getOldKeysFile() != null) {
+            bufferedReader = new BufferedReader(new FileReader(serverParams.getOldKeysFile()));
+            while (bufferedReader.ready()) {
+                String oldKey = bufferedReader.readLine();
+                oldKeys.put(oldKey.hashCode(), oldKey);
+            }
+            bufferedReader.close();
         }
 
-        for (String key : keySet) {
-            keys.put(key.hashCode(), key);
-            newKeysHashes.add(key.hashCode());
-        }
-
-        return new ServerEncryptor(oldKeys, keys, newKeysHashes);
+        return new ServerEnigma(oldKeys, keys, newKeysHashes);
     }
 
     public static Map<Integer, String> generateKeys(int number) {
+        final String SYMBOLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890";
         Random r = new Random();
         Map<Integer, String> keys = Maps.newHashMap();
         String key;

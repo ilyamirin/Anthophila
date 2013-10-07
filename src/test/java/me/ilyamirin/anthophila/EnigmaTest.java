@@ -4,70 +4,66 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
-import me.ilyamirin.anthophila.server.ServerEncryptor;
+import me.ilyamirin.anthophila.server.ServerEnigma;
+import me.ilyamirin.anthophila.server.ServerParams;
 import me.ilyamirin.anthophila.server.ServerStorage;
 import org.bouncycastle.util.Arrays;
 import org.junit.Test;
 import static org.junit.Assert.*;
 import org.junit.Before;
 
+//TODO:: add old keys switch test
+
 /**
  *
  * @author ilyamirin
  */
 @Slf4j
-public class EncryptorTest {
+public class EnigmaTest {
 
     private Random r = new Random();
-    private Gson gson = new GsonBuilder().create();
-    private File file;
-
-    @Before
-    public void init() throws IOException {
-        file = new File("keys.yml");
-        if (file.exists()) {
-            file.delete();
-            file.createNewFile();
-        }
-    }
 
     @Test
     public void testEnigma() throws IOException, InterruptedException {
-        int keysNumber = 10;
+        int keysNumber = 1000;
 
-        Set<String> oldKeys = Sets.newHashSet();
-        Map<Integer, String> newKeys = ServerEncryptor.generateKeys(keysNumber);
+        //Set<String> oldKeys = Sets.newHashSet();
+        Map<Integer, String> newKeys = ServerEnigma.generateKeys(keysNumber);
 
         assertEquals(keysNumber, newKeys.size());
 
-        log.info("{} keys were generated", newKeys.size());
+        EnigmaTest.log.info("{} new keys were generated", newKeys.size());
         for (String key : newKeys.values()) {
-            log.info(key);
+            //log.info(key);
         }
 
-        Map<String, Set<String>> keys = Maps.newHashMap();
-        keys.put("oldKeys", oldKeys);
-        keys.put("newKeys", Sets.newHashSet(newKeys.values()));
+        File file = new File("new.keys");
+        if (file.exists()) {
+            file.delete();
+        }
+        file.createNewFile();
 
-        FileWriter fileWriter = new FileWriter(file);
+        BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(file));
+        for (Map.Entry<Integer, String> entry : newKeys.entrySet()) {
+            bufferedWriter.write(entry.getValue());
+            bufferedWriter.newLine();
+        }
+        bufferedWriter.close();
 
-        gson.toJson(keys, fileWriter);
+        ServerParams serverParams = new ServerParams();
+        serverParams.setNewKeysFile(file.getAbsolutePath());
 
-        fileWriter.flush();
-
-        final ServerEncryptor enigma = null;// = ServerEncryptor.loadFromFile(file.getPath());
+        final ServerEnigma enigma = ServerEnigma.newServerEnigma(serverParams);
 
         int processesNumber = 10;
         final int chunksPerProcess = 1000;
@@ -86,7 +82,7 @@ public class EncryptorTest {
                         r.nextBytes(chunkMd5Hash);
                         r.nextBytes(chunk);
                         try {
-                            ServerEncryptor.EncryptedChunk encryptedChunk = enigma.encrypt(ByteBuffer.wrap(chunk));
+                            ServerEnigma.EncryptedChunk encryptedChunk = enigma.encrypt(ByteBuffer.wrap(chunk));
                             if (Arrays.areEqual(chunk, encryptedChunk.getChunk().array())) {
                                 throw new Exception("Enigma did not encrypt chunk");
                             }
@@ -95,11 +91,11 @@ public class EncryptorTest {
                             }
                             usedKeys.add(encryptedChunk.getKeyHash());
                         } catch (Exception e) {
-                            log.error("Oops!", e);
+                            EnigmaTest.log.error("Oops!", e);
                             exceptionsOccured.incrementAndGet();
                         }
                         if (chunksProcessed.incrementAndGet() % 1000 == 0) {
-                            log.info("{} chunks encrypted/decrypted successfully", chunksProcessed.get());
+                            EnigmaTest.log.info("{} chunks encrypted/decrypted successfully", chunksProcessed.get());
                         }
                     }//for
                     latch.countDown();
@@ -111,7 +107,10 @@ public class EncryptorTest {
 
         assertEquals(0, exceptionsOccured.get());
 
-        assertTrue(Sets.difference(usedKeys, newKeys.keySet()).isEmpty());
+        //Enigma must use all keys
+        Set difference = Sets.difference(newKeys.keySet(), usedKeys);
+        EnigmaTest.log.info("{} keys were unused", difference.size());
+        assertTrue(difference.isEmpty());
 
         //move some keys to old and add new keys
         //old keys should not use for encryption new chunks
