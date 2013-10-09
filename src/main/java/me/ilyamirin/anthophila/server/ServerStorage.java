@@ -34,7 +34,7 @@ public class ServerStorage {
     }
 
     public static ServerStorage newServerStorage(ServerParams params, ServerEnigma serverEnigma) throws IOException {
-        RandomAccessFile randomAccessFile = new RandomAccessFile(params.getPathToStorageFile(), "rw");
+        RandomAccessFile randomAccessFile = new RandomAccessFile(params.getStorageFile(), "rw");
         FileChannel fileChannel = randomAccessFile.getChannel();
         ServerStorage serverStorage = new ServerStorage(fileChannel, serverEnigma, params);
         if (randomAccessFile.length() > 0) {

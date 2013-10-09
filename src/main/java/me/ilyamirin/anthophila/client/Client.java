@@ -26,7 +26,6 @@ public class Client {
     public static Client newClient(String host, int port) throws IOException {
         Client client = new Client();
         SocketChannel socketChannel = SocketChannel.open(new InetSocketAddress(host, port));
-        //socketChannel.configureBlocking(false);
         client.setSocketChannel(socketChannel);
         return client;
     }
@@ -55,6 +54,7 @@ public class Client {
         while (md5HashBuffer.hasRemaining()) {
             socketChannel.read(md5HashBuffer);
         }
+
         if (!Arrays.equals(md5Hash, md5HashBuffer.array())) {
             throw new IOException("Server returned another md5 hash.");
         }
@@ -63,9 +63,11 @@ public class Client {
         while (resultBuffer.hasRemaining()) {
             socketChannel.read(resultBuffer);
         }
+
         if (resultBuffer.get(0) == Server.OperationResultStatus.SUCCESS) {
             return true;
         } else {
+            log.error("Server response status is not SUCCESS: {}", resultBuffer.get(0));
             return false;
         }
     }//push
@@ -144,6 +146,7 @@ public class Client {
         while (resultBuffer.hasRemaining()) {
             socketChannel.read(resultBuffer);
         }
+
         if (resultBuffer.get(0) == Server.OperationResultStatus.SUCCESS) {
             return true;
         } else {

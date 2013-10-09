@@ -1,13 +1,17 @@
 package me.ilyamirin.anthophila;
 
+import com.google.gson.Gson;
 import lombok.extern.slf4j.Slf4j;
 import me.ilyamirin.anthophila.client.Client;
 import me.ilyamirin.anthophila.server.Server;
+import me.ilyamirin.anthophila.server.ServerParams;
 import me.ilyamirin.anthophila.server.ServerStorage;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -35,15 +39,25 @@ public class IntegrationTest {
         String host = "127.0.0.1";
         int port = 7621;
 
-        String[] params = {
-                "--storage", file.getAbsolutePath(),
-                "--encrypt",
-                "--host", host,
-                "--port", String.valueOf(port),
-                "--old-keys", "old.keys",
-                "--new-keys", "new.keys"};
+        ServerParams serverParams = new ServerParams();
+        serverParams.setStorageFile("test.bin");
 
-        Server.main(params);
+        serverParams.setHost(host);
+        serverParams.setPort(port);
+
+        serverParams.setEncrypt(true);
+        serverParams.setNewKeysFile("new.keys");
+        serverParams.setOldKeysFile("old.keys");
+
+        serverParams.setMaxConnections(10);
+
+        serverParams.setServeAll(true);
+
+        FileWriter writer = new FileWriter("server.json");
+        new Gson().toJson(serverParams, ServerParams.class, writer);
+        writer.close();
+
+        Server.main();
 
         try {
             Thread.sleep(1000);
@@ -54,7 +68,7 @@ public class IntegrationTest {
 
         assertTrue(client.isConnected());
 
-        final int clientsNumber = 100;
+        final int clientsNumber = 10;
         final int requestsNumber = 1000;
         final AtomicInteger errorsCounter = new AtomicInteger(0);
         final AtomicInteger requestsPassed = new AtomicInteger(0);
@@ -67,16 +81,16 @@ public class IntegrationTest {
             new Thread() {
                 @Override
                 public void run() {
-                    byte[] md5Hash = new byte[ServerStorage.MD5_HASH_LENGTH];
+                    ByteBuffer md5Hash = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
                     byte[] chunk = new byte[ServerStorage.CHUNK_LENGTH];
 
                     for (int j = 0; j < requestsNumber; j++) {
-                        r.nextBytes(md5Hash);
+                        md5Hash.putLong(0, r.nextLong());
                         r.nextBytes(chunk);
 
                         try {
-                            client.push(md5Hash, chunk);
-                            if (!Arrays.equals(chunk, client.pull(md5Hash))) {
+                            client.push(md5Hash.array(), chunk);
+                            if (!Arrays.equals(chunk, client.pull(md5Hash.array()))) {
                                 log.error("Returned result is incorrect.");
                             }
                         } catch (IOException ex) {
@@ -86,10 +100,10 @@ public class IntegrationTest {
 
                         if (r.nextBoolean()) {
                             try {
-                                if (!client.remove(md5Hash)) {
+                                if (!client.remove(md5Hash.array())) {
                                     throw new IOException("Client couldn`t remove chunk.");
                                 }
-                                if (client.pull(md5Hash) != null) {
+                                if (client.pull(md5Hash.array()) != null) {
                                     throw new IOException("Client returned previously removed chunk.");
                                 }
                             } catch (IOException exception) {
