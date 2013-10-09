@@ -2,7 +2,7 @@ package me.ilyamirin.anthophila;
 
 import com.google.gson.Gson;
 import lombok.extern.slf4j.Slf4j;
-import me.ilyamirin.anthophila.client.Client;
+import me.ilyamirin.anthophila.client.OneNodeClient;
 import me.ilyamirin.anthophila.server.Server;
 import me.ilyamirin.anthophila.server.ServerParams;
 import me.ilyamirin.anthophila.server.ServerStorage;
@@ -64,7 +64,7 @@ public class IntegrationTest {
         } catch (InterruptedException ex) {
         }
 
-        final Client client = Client.newClient(host, port);
+        final OneNodeClient client = OneNodeClient.newClient(host, port);
 
         assertTrue(client.isConnected());
 
@@ -81,16 +81,16 @@ public class IntegrationTest {
             new Thread() {
                 @Override
                 public void run() {
-                    ByteBuffer md5Hash = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
+                    byte[] md5Hash = new byte[ServerStorage.MD5_HASH_LENGTH];
                     byte[] chunk = new byte[ServerStorage.CHUNK_LENGTH];
 
                     for (int j = 0; j < requestsNumber; j++) {
-                        md5Hash.putLong(0, r.nextLong());
+                        r.nextBytes(md5Hash);
                         r.nextBytes(chunk);
 
                         try {
-                            client.push(md5Hash.array(), chunk);
-                            if (!Arrays.equals(chunk, client.pull(md5Hash.array()))) {
+                            client.push(md5Hash, chunk);
+                            if (!Arrays.equals(chunk, client.pull(md5Hash))) {
                                 log.error("Returned result is incorrect.");
                             }
                         } catch (IOException ex) {
@@ -100,11 +100,11 @@ public class IntegrationTest {
 
                         if (r.nextBoolean()) {
                             try {
-                                if (!client.remove(md5Hash.array())) {
-                                    throw new IOException("Client couldn`t remove chunk.");
+                                if (!client.remove(md5Hash)) {
+                                    throw new IOException("OneNodeClient couldn`t remove chunk.");
                                 }
-                                if (client.pull(md5Hash.array()) != null) {
-                                    throw new IOException("Client returned previously removed chunk.");
+                                if (client.pull(md5Hash) != null) {
+                                    throw new IOException("OneNodeClient returned previously removed chunk.");
                                 }
                             } catch (IOException exception) {
                                 errorsCounter.incrementAndGet();
@@ -136,4 +136,25 @@ public class IntegrationTest {
 
         client.close();
     }//simpleTest
+
+    @Test
+    public void serverMustRejectForeignKeys() throws IOException, InterruptedException {
+
+    }
+
+    @Test
+    public void serverMustContinueWorkingAfterBrokenOperations() throws IOException, InterruptedException {
+
+    }
+
+    @Test
+    public void serverMustContinueWorkingAfterTimeouts() throws IOException, InterruptedException {
+
+    }
+
+    @Test
+    public void clusteredTest() throws IOException, InterruptedException {
+
+    }
+
 }

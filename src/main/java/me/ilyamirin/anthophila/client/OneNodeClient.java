@@ -15,16 +15,16 @@ import java.util.Arrays;
  * @author ilyamirin
  */
 @Slf4j
-public class Client {
+public class OneNodeClient {
 
     @Setter
     private SocketChannel socketChannel;
 
-    private Client() {
+    private OneNodeClient() {
     }
 
-    public static Client newClient(String host, int port) throws IOException {
-        Client client = new Client();
+    public static OneNodeClient newClient(String host, int port) throws IOException {
+        OneNodeClient client = new OneNodeClient();
         SocketChannel socketChannel = SocketChannel.open(new InetSocketAddress(host, port));
         client.setSocketChannel(socketChannel);
         return client;
@@ -67,7 +67,7 @@ public class Client {
         if (resultBuffer.get(0) == Server.OperationResultStatus.SUCCESS) {
             return true;
         } else {
-            log.error("Server response status is not SUCCESS: {}", resultBuffer.get(0));
+            OneNodeClient.log.error("Server response status is not SUCCESS: {}", resultBuffer.get(0));
             return false;
         }
     }//push
@@ -91,7 +91,7 @@ public class Client {
             socketChannel.read(md5HashBuffer);
         }
         if (!Arrays.equals(md5Hash, md5HashBuffer.array())) {
-            log.error("Server returned another md5 hash: {} {}", md5Hash, md5HashBuffer.array());
+            OneNodeClient.log.error("Server returned another md5 hash: {} {}", md5Hash, md5HashBuffer.array());
             throw new IOException("Server returned another md5 hash.");
         }
 
@@ -138,7 +138,7 @@ public class Client {
             socketChannel.read(md5HashBuffer);
         }
         if (!Arrays.equals(md5Hash, md5HashBuffer.array())) {
-            log.error("Server returned another md5 hash: {} {}", md5Hash, md5HashBuffer.array());
+            OneNodeClient.log.error("Server returned another md5 hash: {} {}", md5Hash, md5HashBuffer.array());
             throw new IOException("Server returned another md5 hash.");
         }
 
