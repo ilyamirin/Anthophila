@@ -19,6 +19,5 @@ public class ServerParams {
     private String oldKeysFile;
 
     private boolean serveAll;
-    private byte[] pushingKeysMask;
-    private byte[] pullingKeysMask;
+    private String topologyFile;
 }

@@ -1,6 +1,7 @@
 target/
 test.bin
 server.json
+topology.json
 *.iml
 .idea/
 *.keys

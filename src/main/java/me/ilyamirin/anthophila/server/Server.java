@@ -1,11 +1,11 @@
 package me.ilyamirin.anthophila.server;
 
 import com.google.gson.Gson;
+import lombok.AllArgsConstructor;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import static me.ilyamirin.anthophila.common.TopologyKeyMask.applyKeyToMask;
-
+import me.ilyamirin.anthophila.common.Topology;
 import java.io.FileReader;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -14,7 +14,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 
 @Slf4j
-@RequiredArgsConstructor
+@AllArgsConstructor
 public class Server extends Thread {
 
     public final class OperationTypes {
@@ -36,8 +36,9 @@ public class Server extends Thread {
     private ServerParams params;
     @NonNull
     private ServerStorage storage;
+    private Topology topology;
 
-    private void writeResponse(SocketChannel channel, ByteBuffer response) throws IOException {
+    private static void writeResponse(SocketChannel channel, ByteBuffer response) throws IOException {
         response.rewind();
         while (response.hasRemaining())
             channel.write(response);
@@ -52,7 +53,7 @@ public class Server extends Thread {
         ByteBuffer response = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH + 1);
         response.put(md5Hash.array());
 
-        if (!params.isServeAll() && !applyKeyToMask(md5Hash, params.getPushingKeysMask())) {
+        if (!params.isServeAll() && !topology.isKeyServableForServer(md5Hash, params)) {
             response.put(OperationResultStatus.KEY_IS_OUT_OF_RANGE);
             writeResponse(channel, response);
             return;
@@ -81,7 +82,7 @@ public class Server extends Thread {
             channel.read(md5Hash);
         }
 
-        if (!params.isServeAll() && !applyKeyToMask(md5Hash, params.getPullingKeysMask())) {
+        if (!params.isServeAll() && !topology.isKeyServableForServer(md5Hash, params)) {
             ByteBuffer response = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH + 1);
             response.put(md5Hash.array());
             response.put(OperationResultStatus.KEY_IS_OUT_OF_RANGE);
@@ -173,9 +174,10 @@ public class Server extends Thread {
         String pathToConfig = args.length > 0 ? args[0] : "server.json";
         ServerParams serverParams = new Gson().fromJson(new FileReader(pathToConfig), ServerParams.class);
         log.info("{}", serverParams);
+        Topology topology = serverParams.isServeAll() ? null : Topology.loadFromFile(serverParams.getTopologyFile());
         ServerEnigma serverEnigma = ServerEnigma.newServerEnigma(serverParams);
         ServerStorage serverStorage = ServerStorage.newServerStorage(serverParams, serverEnigma);
-        Server server = new Server(serverParams, serverStorage);
+        Server server = new Server(serverParams, serverStorage, topology);
         server.start();
     }
 

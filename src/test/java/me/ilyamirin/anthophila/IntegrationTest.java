@@ -11,7 +11,6 @@ import org.junit.Test;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -58,11 +57,7 @@ public class IntegrationTest {
         writer.close();
 
         Server.main();
-
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException ex) {
-        }
+        Thread.sleep(1000);
 
         final OneNodeClient client = OneNodeClient.newClient(host, port);
 
@@ -136,25 +131,5 @@ public class IntegrationTest {
 
         client.close();
     }//simpleTest
-
-    @Test
-    public void serverMustRejectForeignKeys() throws IOException, InterruptedException {
-
-    }
-
-    @Test
-    public void serverMustContinueWorkingAfterBrokenOperations() throws IOException, InterruptedException {
-
-    }
-
-    @Test
-    public void serverMustContinueWorkingAfterTimeouts() throws IOException, InterruptedException {
-
-    }
-
-    @Test
-    public void clusteredTest() throws IOException, InterruptedException {
-
-    }
 
 }
