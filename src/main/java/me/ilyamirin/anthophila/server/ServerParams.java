@@ -10,6 +10,8 @@ public class ServerParams {
 
     private String storageFile;
 
+    private int initialIndexSize;
+
     private String host;
     private int port;
     private int maxConnections;

@@ -30,22 +30,23 @@ public class ServerStorage {
 
     private ServerEnigma enigma;
 
-    private MultiKeyMap mainIndex = MultiKeyMap.decorate(new LinkedMap(5000));
+    private MultiKeyMap mainIndex;
     private List<ServerIndexEntry> condemnedIndex = new ArrayList<>();
 
-    private ServerStorage(FileChannel fileChannel, ServerEnigma enigma, ServerParams params) {
+    private ServerStorage(FileChannel fileChannel, ServerEnigma enigma, ServerParams params, MultiKeyMap mainIndex) {
         this.fileChannel = fileChannel;
         this.enigma = enigma;
         this.params = params;
+        this.mainIndex = mainIndex;
     }
 
     public static ServerStorage newServerStorage(ServerParams params, ServerEnigma serverEnigma) throws IOException {
         RandomAccessFile randomAccessFile = new RandomAccessFile(params.getStorageFile(), "rw");
         FileChannel fileChannel = randomAccessFile.getChannel();
-        ServerStorage serverStorage = new ServerStorage(fileChannel, serverEnigma, params);
-        if (randomAccessFile.length() > 0) {
+        MultiKeyMap mainIndex = MultiKeyMap.decorate(new LinkedMap(params.getInitialIndexSize()));
+        ServerStorage serverStorage = new ServerStorage(fileChannel, serverEnigma, params, mainIndex);
+        if (randomAccessFile.length() > 0)
             serverStorage.loadExistedStorage();
-        }
         return serverStorage;
     }
 
@@ -79,24 +80,17 @@ public class ServerStorage {
 
         if (condemnedIndex.isEmpty()) {
             long chunkFirstBytePosition = fileChannel.size() + AUX_CHUNK_INFO_LENGTH;
-
             while (byteBuffer.hasRemaining())
                 fileChannel.write(byteBuffer, fileChannel.size());
-
             ServerIndexEntry entry = new ServerIndexEntry(chunkFirstBytePosition, chunk.array().length);
-
             mainIndex.put(key.getInt(0), key.getInt(4), key.getInt(8), key.getInt(12), entry);
 
         } else {
             ServerIndexEntry entry = condemnedIndex.get(0);
-
             while (byteBuffer.hasRemaining())
                 fileChannel.write(byteBuffer, entry.getChunkPosition() - AUX_CHUNK_INFO_LENGTH);
-
             condemnedIndex.remove(0);
-
             entry.setChunkLength(chunk.array().length);
-
             mainIndex.put(key.getInt(0), key.getInt(4), key.getInt(8), key.getInt(12), entry);
         }
     }
@@ -117,7 +111,7 @@ public class ServerStorage {
         buffer.position(4);
         buffer.get(IV);
 
-        //TODO:: читать часнк вместе к ключом и IV
+        //TODO:: читать чанк вместе к ключом и IV
         ByteBuffer chunk = ByteBuffer.allocate(indexEntry.getChunkLength());
         while (chunk.hasRemaining())
             fileChannel.read(chunk, indexEntry.getChunkPosition() + ENCRYPTION_CHUNK_INFO_LENGTH);
@@ -167,10 +161,8 @@ public class ServerStorage {
             position = chunkPosition + ENCRYPTION_CHUNK_INFO_LENGTH + CHUNK_LENGTH;
             buffer.clear();
 
-            chunksSuccessfullyLoaded++;
-            if (chunksSuccessfullyLoaded % 1000 == 0) {
+            if (++chunksSuccessfullyLoaded % 1000 == 0)
                 log.info("{} chunks were successfully loaded", chunksSuccessfullyLoaded);
-            }
         }//while
 
         log.info("{} chunks were successfully loaded", chunksSuccessfullyLoaded);
