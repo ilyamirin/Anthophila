@@ -16,6 +16,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import static java.util.Collections.synchronizedMap;
+
 /**
  * @author ilyamirin
  */
@@ -42,9 +44,16 @@ public class ServerEnigma {
         this.newKeysHashes = newKeysHashes;
     }
 
+    public static ServerEnigma newServerEnigma(Map<Integer, String> keys, Map<Integer, String> oldKeys) throws IOException {
+        List<Integer> newKeysHashes = Collections.synchronizedList(new ArrayList<Integer>());
+        for (Integer key : keys.keySet())
+            newKeysHashes.add(key);
+        return new ServerEnigma(synchronizedMap(oldKeys), synchronizedMap(keys), newKeysHashes);
+    }
+
     public static ServerEnigma newServerEnigma(ServerParams serverParams) throws IOException {
         BufferedReader bufferedReader = new BufferedReader(new FileReader(serverParams.getNewKeysFile()));
-        Map<Integer, String> keys = Collections.synchronizedMap(new HashMap<Integer, String>());
+        Map<Integer, String> keys = synchronizedMap(new HashMap<Integer, String>());
         List<Integer> newKeysHashes = Collections.synchronizedList(new ArrayList<Integer>());
         while (bufferedReader.ready()) {
             String newKey = bufferedReader.readLine();
@@ -55,7 +64,7 @@ public class ServerEnigma {
 
         log.info("{} new keys were loaded for encryption.", keys.size());
 
-        Map<Integer, String> oldKeys = Collections.synchronizedMap(new HashMap<Integer, String>());
+        Map<Integer, String> oldKeys = synchronizedMap(new HashMap<Integer, String>());
         if (serverParams.getOldKeysFile() != null) {
             bufferedReader = new BufferedReader(new FileReader(serverParams.getOldKeysFile()));
             while (bufferedReader.ready()) {

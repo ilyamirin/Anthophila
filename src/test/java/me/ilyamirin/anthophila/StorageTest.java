@@ -1,6 +1,6 @@
 package me.ilyamirin.anthophila;
 
-import com.beust.jcommander.JCommander;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,9 +23,9 @@ import static junit.framework.Assert.*;
  */
 @Slf4j
 public class StorageTest {
- /*
+
     @AllArgsConstructor
-    class RandomChunksStoragteClient extends Thread {
+    class RandomChunksStorageClient extends Thread {
 
         private final Random r = new Random();
         private final ServerStorage storage;
@@ -86,7 +86,7 @@ public class StorageTest {
     private Random r = new Random();
     private ServerStorage storage;
     private File file;
-    //private ServerEnigma enigma = ServerEnigma.newServerEncryptor(Sets.newHashSet(ServerEnigma.generateKeys(10).values()), new HashSet<String>());
+    private ServerEnigma enigma;
 
     @Before
     public void cleanStorageFile() throws IOException {
@@ -101,44 +101,15 @@ public class StorageTest {
 
     public void setUp(boolean isEnctiptionOn) throws IOException {
         System.gc();
+
         ServerParams params = new ServerParams();
-        JCommander jc = new JCommander(params, new String[]{"--encryption", "--storage", "test.bin"});
+        params.setStorageFile(file.getAbsolutePath());
+        params.setInitialIndexSize(5000);
+        params.setEncrypt(isEnctiptionOn);
+
+        ServerEnigma enigma = ServerEnigma.newServerEnigma(ServerEnigma.generateKeys(10), new HashMap<Integer, String>());
+
         storage = ServerStorage.newServerStorage(params, enigma);
-    }
-
-    @Test
-    public void indexTest() {
-        Map<ByteBuffer, ServerIndexEntry> map = new HashMap<>();
-
-        ServerIndex serverIndex = new ServerIndex();
-
-        for (int i = 0; i < 10000; i++) {
-            byte[] bytes = new byte[16];
-            r.nextBytes(bytes);
-            ByteBuffer md5Hash = ByteBuffer.wrap(bytes);
-            md5Hash.position(0);
-
-            ServerIndexEntry serverIndexEntry = new ServerIndexEntry(r.nextLong(), r.nextInt());
-            map.put(md5Hash, serverIndexEntry);
-            serverIndex.put(md5Hash, serverIndexEntry);
-
-            if (i % 10000 == 0) {
-                log.info("{} index operations have been passed.", i);
-            }
-        }
-
-        int i = 0;
-        for (Map.Entry<ByteBuffer, ServerIndexEntry> entry : map.entrySet()) {
-            ByteBuffer key = entry.getKey();
-            assertTrue(serverIndex.contains(key));
-            assertEquals(entry.getValue(), serverIndex.get(key));
-            assertEquals(entry.getValue(), serverIndex.remove(key));
-            assertFalse(serverIndex.contains(key));
-            if (++i % 10000 == 0) {
-                log.info("{} index entried were checked.", i);
-            }
-
-        }
     }
 
     @Test
@@ -180,9 +151,9 @@ public class StorageTest {
         cleanStorageFile();
         setUp(false);
 
-        int cuncurrentClientsNumber = 10;
-        int cuncurrentRequestsNumber = 1000;
-        CountDownLatch latch = new CountDownLatch(cuncurrentClientsNumber);
+        int concurrentClientsNumber = 10;
+        int concurrentRequestsNumber = 1000;
+        CountDownLatch latch = new CountDownLatch(concurrentClientsNumber);
         AtomicInteger assertionErrorsCount = new AtomicInteger(0);
         AtomicInteger passedRequests = new AtomicInteger(0);
         AtomicInteger chunksDeletedCounter = new AtomicInteger(0);
@@ -190,16 +161,16 @@ public class StorageTest {
         Map<Long, ByteBuffer> existedValues = Collections.synchronizedMap(new HashMap<Long, ByteBuffer>());
 
         long start = System.currentTimeMillis();
-        for (int i = 0; i < cuncurrentClientsNumber; i++) {
-            new RandomChunksStoragteClient(storage, latch, assertionErrorsCount, chunksDeletedCounter, passedRequests, existedKeys, existedValues, cuncurrentRequestsNumber)
+        for (int i = 0; i < concurrentClientsNumber; i++) {
+            new RandomChunksStorageClient(storage, latch, assertionErrorsCount, chunksDeletedCounter, passedRequests, existedKeys, existedValues, concurrentRequestsNumber)
                     .start();
         }//for
 
         latch.await();
         assertEquals(0, assertionErrorsCount.get());
-        log.info("{} have been passed for {} seconds.", cuncurrentClientsNumber * cuncurrentRequestsNumber, (System.currentTimeMillis() - start) / 1000);
+        log.info("{} have been passed for {} seconds.", concurrentClientsNumber * concurrentRequestsNumber, (System.currentTimeMillis() - start) / 1000);
 
-        long expectedSpace = ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH * (cuncurrentClientsNumber * cuncurrentRequestsNumber
+        long expectedSpace = ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH * (concurrentClientsNumber * concurrentRequestsNumber
                 - chunksDeletedCounter.get());
         assertTrue((file.length() - expectedSpace) == ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH || file.length() == expectedSpace);
 
@@ -217,7 +188,7 @@ public class StorageTest {
             assertTrue(Arrays.equals(existedValues.get(entry.getKey()).array(), result.array()));
 
             counter++;
-            if (counter % cuncurrentRequestsNumber == 0) {
+            if (counter % concurrentRequestsNumber == 0) {
                 log.info("{} chunks were successfully checked", counter);
             }
         }//for
@@ -239,12 +210,12 @@ public class StorageTest {
             assertTrue(Arrays.equals(existedValues.get(entry.getKey()).array(), result.array()));
 
             counter++;
-            if (counter % cuncurrentRequestsNumber == 0) {
+            if (counter % concurrentRequestsNumber == 0) {
                 log.info("{} previously added chunks were successfully checked", counter);
             }
         }//for
 
-        latch = new CountDownLatch(cuncurrentClientsNumber);
+        latch = new CountDownLatch(concurrentClientsNumber);
         assertionErrorsCount.set(0);
         passedRequests.set(0);
         chunksDeletedCounter.set(0);
@@ -252,21 +223,22 @@ public class StorageTest {
         existedValues.clear();
 
         start = System.currentTimeMillis();
-        for (int i = 0; i < cuncurrentClientsNumber; i++) {
-            new RandomChunksStoragteClient(storage, latch, assertionErrorsCount, chunksDeletedCounter, passedRequests, existedKeys, existedValues, cuncurrentRequestsNumber)
+        for (int i = 0; i < concurrentClientsNumber; i++) {
+            new RandomChunksStorageClient(storage, latch, assertionErrorsCount, chunksDeletedCounter, passedRequests, existedKeys, existedValues, concurrentRequestsNumber)
                     .start();
         }//for
 
         latch.await();
-        log.info("{} I/O operations have been passed for {} seconds.", cuncurrentClientsNumber * cuncurrentRequestsNumber, (System.currentTimeMillis() - start) / 1000);
+        log.info("{} I/O operations have been passed for {} seconds.", concurrentClientsNumber * concurrentRequestsNumber, (System.currentTimeMillis() - start) / 1000);
 
         assertEquals(0, assertionErrorsCount.get());
 
-        expectedSpace += ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH * (cuncurrentClientsNumber * cuncurrentRequestsNumber - chunksDeletedCounter.get());
+        expectedSpace += ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH * (concurrentClientsNumber * concurrentRequestsNumber - chunksDeletedCounter.get());
+        expectedSpace += ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH * 4;
 
         log.info("Used space={}, max expected space= {}", file.length(), expectedSpace);
-        assertTrue(file.length() <= expectedSpace && file.length() >= (expectedSpace - ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH * 4));
+        assertTrue(file.length() <= expectedSpace);
 
     }//basicOpsParallelTest
-    */
+
 }

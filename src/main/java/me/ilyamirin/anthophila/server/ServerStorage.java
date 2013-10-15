@@ -141,24 +141,26 @@ public class ServerStorage {
         long position = 0;
 
         while (fileChannel.read(buffer, position) > 0) {
-            buffer.position(0);
+            buffer.rewind();
 
             byte tombstone = buffer.get();
-            byte[] md5HashArray = new byte[16];
+
+            byte[] md5HashArray = new byte[MD5_HASH_LENGTH];
             buffer.get(md5HashArray);
-            ByteBuffer md5Hash = ByteBuffer.wrap(md5HashArray);
+            ByteBuffer key = ByteBuffer.wrap(md5HashArray);
+
             int chunkLength = buffer.getInt();
             long chunkPosition = position + AUX_CHUNK_INFO_LENGTH;
 
             ServerIndexEntry indexEntry = new ServerIndexEntry(chunkPosition, chunkLength);
 
-            if (tombstone == Byte.MAX_VALUE) {
-                mainIndex.put(md5Hash, indexEntry);
-            } else {
+            if (tombstone == Byte.MAX_VALUE)
+                mainIndex.put(key.getInt(0), key.getInt(4), key.getInt(8), key.getInt(12), indexEntry);
+            else
                 condemnedIndex.add(indexEntry);
-            }
 
             position = chunkPosition + ENCRYPTION_CHUNK_INFO_LENGTH + CHUNK_LENGTH;
+
             buffer.clear();
 
             if (++chunksSuccessfullyLoaded % 1000 == 0)
