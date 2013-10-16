@@ -30,10 +30,7 @@ public class TopologyTest {
 
     private static final Gson GSON = new Gson();
 
-    @Test
-    public void testTopology() throws IOException {
-        Topology topology = new Topology();
-
+    private void testTopology(Topology topology) {
         List<Byte> first = Lists.newArrayList((byte) 0);
         Set<Topology.Node> nodesForFirst = Sets.newHashSet(new Topology.Node("127.0.0.1", 999), new Topology.Node("127.0.0.4", 999));
         topology.getKeyMasks().put(first, nodesForFirst);
@@ -54,14 +51,19 @@ public class TopologyTest {
 
         byte[] keyForThirdNode = new byte[] { 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0 };
         assertTrue(Sets.symmetricDifference(topology.findNodes(ByteBuffer.wrap(keyForThirdNode)), nodesForThird).isEmpty());
+    }
 
-        log.info("{}", GSON.toJson(topology.getKeyMasks()));
+    @Test
+    public void testTopology() throws IOException {
+        Topology topology = new Topology();
+        testTopology(topology);
+
         FileWriter fw = new FileWriter("topology.json");
-        GSON.toJson(topology, fw);
+        GSON.toJson(topology.getKeyMasks(), fw);
         fw.close();
 
         Topology loadedTopology = Topology.loadFromFile("topology.json");
-
-        assertTrue(Sets.symmetricDifference(loadedTopology.getKeyMasks().entrySet(), topology.getKeyMasks().entrySet()).isEmpty());
+        assertTrue(Sets.symmetricDifference(loadedTopology.getKeyMasks().keySet(), topology.getKeyMasks().keySet()).isEmpty());
+        testTopology(loadedTopology);
     }//testEnigma
 }
