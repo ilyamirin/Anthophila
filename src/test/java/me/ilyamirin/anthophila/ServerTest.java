@@ -12,6 +12,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Random;
 
@@ -59,15 +60,16 @@ public class ServerTest {
 
         Thread.sleep(1000);
 
-        byte[] md5Hash = new byte[ServerStorage.MD5_HASH_LENGTH];
-        byte[] chunk = new byte[ServerStorage.CHUNK_LENGTH];
+        ByteBuffer key = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
+        ByteBuffer chunk = ByteBuffer.allocate(ServerStorage.CHUNK_LENGTH);
 
-        r.nextBytes(md5Hash);
-        r.nextBytes(chunk);
+        r.nextBytes(key.array());
+        r.nextBytes(chunk.array());
 
         OneNodeClient client = OneNodeClient.newClient(host, port);
-        client.push(md5Hash, chunk);
-        assertTrue(Arrays.equals(chunk, client.pull(md5Hash)));
+
+        assertTrue(client.push(key, chunk));
+        assertTrue(Arrays.equals(chunk.array(), client.pull(key).array()));
 
         client.close();
         //server.interrupt();
