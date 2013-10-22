@@ -34,7 +34,7 @@ public class IntegrationTest {
 
     @Test
     public void simpleTest() throws IOException, InterruptedException {
-        File file = new File("/Volumes/Macintosh HD/testoste/test.bin");
+        File file = new File("test.bin");
         if (file.exists())
             file.delete();
         file.createNewFile();
@@ -43,7 +43,7 @@ public class IntegrationTest {
         int port = 7621;
 
         ServerParams serverParams = new ServerParams();
-        serverParams.setStorageFile("/Volumes/Macintosh HD/testoste/test.bin");
+        serverParams.setStorageFile("test.bin");
 
         serverParams.setInitialIndexSize(5000);
 
