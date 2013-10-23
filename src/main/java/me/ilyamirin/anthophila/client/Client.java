@@ -15,8 +15,10 @@ public interface Client {
     boolean push(ByteBuffer key, ByteBuffer chunk) throws IOException;
 
     ByteBuffer pull(ByteBuffer key) throws IOException;
-
+    
     boolean remove(ByteBuffer key) throws IOException;
+    
+    boolean seek(ByteBuffer key) throws IOException;    
 
     void close() throws IOException;
 }

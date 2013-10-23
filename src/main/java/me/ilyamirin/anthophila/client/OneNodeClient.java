@@ -9,7 +9,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.util.Arrays;
 
 /**
  * @author ilyamirin
@@ -33,10 +32,12 @@ public class OneNodeClient implements Client {
 
     @Override
     public synchronized boolean push(ByteBuffer key, ByteBuffer chunk) throws IOException {
-        if (!socketChannel.isConnected())
+        if (!socketChannel.isConnected()) {
             socketChannel.connect(socketChannel.getLocalAddress());
+        }
 
-        key.rewind(); chunk.rewind();
+        key.rewind();
+        chunk.rewind();
 
         ByteBuffer request = ByteBuffer.allocate(1 + ServerStorage.MD5_HASH_LENGTH + 4 + chunk.limit());
         request.put(Server.OperationTypes.PUSHING); //push chunk operation
@@ -45,20 +46,25 @@ public class OneNodeClient implements Client {
         request.put(chunk);
 
         request.rewind();
-        while (request.hasRemaining())
+        while (request.hasRemaining()) {
             socketChannel.write(request);
+        }
 
         ByteBuffer returnedKey = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
-        while (returnedKey.hasRemaining())
+        while (returnedKey.hasRemaining()) {
             socketChannel.read(returnedKey);
+        }
 
-        key.rewind(); returnedKey.rewind();
-        if (!key.equals(returnedKey))
+        key.rewind();
+        returnedKey.rewind();
+        if (!key.equals(returnedKey)) {
             throw new IOException("Server returned another md5 hash.");
+        }
 
         ByteBuffer resultBuffer = ByteBuffer.allocate(1);
-        while (resultBuffer.hasRemaining())
+        while (resultBuffer.hasRemaining()) {
             socketChannel.read(resultBuffer);
+        }
 
         if (resultBuffer.get(0) == Server.OperationResultStatus.SUCCESS) {
             return true;
@@ -70,8 +76,9 @@ public class OneNodeClient implements Client {
 
     @Override
     public synchronized ByteBuffer pull(ByteBuffer key) throws IOException {
-        if (!socketChannel.isConnected())
+        if (!socketChannel.isConnected()) {
             socketChannel.connect(socketChannel.getLocalAddress());
+        }
 
         key.rewind();
 
@@ -80,34 +87,40 @@ public class OneNodeClient implements Client {
         request.put(key);
 
         request.rewind();
-        while (request.hasRemaining())
+        while (request.hasRemaining()) {
             socketChannel.write(request);
+        }
 
         ByteBuffer returnedKey = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
-        while (returnedKey.hasRemaining())
+        while (returnedKey.hasRemaining()) {
             socketChannel.read(returnedKey);
+        }
 
-        key.rewind(); returnedKey.rewind();
+        key.rewind();
+        returnedKey.rewind();
         if (!key.equals(returnedKey)) {
             log.error("Server returned another md5 hash: {} {}", key, returnedKey.array());
             throw new IOException("Server returned another md5 hash.");
         }
 
         ByteBuffer resultBuffer = ByteBuffer.allocate(1);
-        while (resultBuffer.hasRemaining())
+        while (resultBuffer.hasRemaining()) {
             socketChannel.read(resultBuffer);
+        }
 
         if (resultBuffer.get(0) == Server.OperationResultStatus.CHUNK_WAS_NOT_FOUND) {
             return null;
         }
 
         ByteBuffer chunkLengthBuffer = ByteBuffer.allocate(4);
-        while (chunkLengthBuffer.hasRemaining())
+        while (chunkLengthBuffer.hasRemaining()) {
             socketChannel.read(chunkLengthBuffer);
+        }
 
         ByteBuffer chunkBuffer = ByteBuffer.allocate(chunkLengthBuffer.getInt(0));
-        while (chunkBuffer.hasRemaining())
+        while (chunkBuffer.hasRemaining()) {
             socketChannel.read(chunkBuffer);
+        }
 
         return chunkBuffer;
 
@@ -115,8 +128,9 @@ public class OneNodeClient implements Client {
 
     @Override
     public synchronized boolean remove(ByteBuffer key) throws IOException {
-        if (!socketChannel.isConnected())
+        if (!socketChannel.isConnected()) {
             socketChannel.connect(socketChannel.getLocalAddress());
+        }
 
         key.rewind();
 
@@ -125,24 +139,66 @@ public class OneNodeClient implements Client {
         request.put(key);
 
         request.position(0);
-        while (request.hasRemaining())
+        while (request.hasRemaining()) {
             socketChannel.write(request);
+        }
 
         ByteBuffer returnedKey = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
-        while (returnedKey.hasRemaining())
+        while (returnedKey.hasRemaining()) {
             socketChannel.read(returnedKey);
+        }
 
-        key.rewind(); returnedKey.rewind();
+        key.rewind();
+        returnedKey.rewind();
         if (!key.equals(returnedKey)) {
             log.error("Server returned another md5 hash: {} {}", key.array(), returnedKey.array());
             throw new IOException("Server returned another md5 hash.");
         }
 
         ByteBuffer resultBuffer = ByteBuffer.allocate(1);
-        while (resultBuffer.hasRemaining())
+        while (resultBuffer.hasRemaining()) {
             socketChannel.read(resultBuffer);
+        }
 
         return resultBuffer.get(0) == Server.OperationResultStatus.SUCCESS;
+
+    }//pull
+
+    @Override
+    public synchronized boolean seek(ByteBuffer key) throws IOException {
+        if (!socketChannel.isConnected()) {
+            socketChannel.connect(socketChannel.getLocalAddress());
+        }
+
+        key.rewind();
+
+        ByteBuffer request = ByteBuffer.allocate(1 + ServerStorage.MD5_HASH_LENGTH);
+        request.put(Server.OperationTypes.SEEKING);
+        request.put(key);
+
+        request.rewind();
+        while (request.hasRemaining()) {
+            socketChannel.write(request);
+        }
+
+        ByteBuffer returnedKey = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
+        while (returnedKey.hasRemaining()) {
+            socketChannel.read(returnedKey);
+        }
+
+        key.rewind();
+        returnedKey.rewind();
+        if (!key.equals(returnedKey)) {
+            log.error("Server returned another md5 hash: {} {}", key, returnedKey.array());
+            throw new IOException("Server returned another md5 hash.");
+        }
+
+        ByteBuffer resultBuffer = ByteBuffer.allocate(1);
+        while (resultBuffer.hasRemaining()) {
+            socketChannel.read(resultBuffer);
+        }
+
+        return resultBuffer.get(0) == Server.OperationResultStatus.CHUNK_WAS_FOUND;
 
     }//pull
 

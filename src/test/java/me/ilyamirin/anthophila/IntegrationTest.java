@@ -13,9 +13,7 @@ import org.junit.Test;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.channels.SocketChannel;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -35,12 +33,13 @@ public class IntegrationTest {
     @Test
     public void simpleTest() throws IOException, InterruptedException {
         File file = new File("test.bin");
-        if (file.exists())
+        if (file.exists()) {
             file.delete();
+        }
         file.createNewFile();
 
-        String host = "127.0.0.1";
-        int port = 7621;
+        final String host = "127.0.0.1";
+        final int port = 7621;
 
         ServerParams serverParams = new ServerParams();
         serverParams.setStorageFile("test.bin");
@@ -65,10 +64,6 @@ public class IntegrationTest {
         Server.main();
         Thread.sleep(1000);
 
-        final OneNodeClient client = OneNodeClient.newClient(host, port);
-
-        assertTrue(client.isConnected());
-
         final int clientsNumber = 10;
         final int requestsNumber = 1000;
         final AtomicInteger errorsCounter = new AtomicInteger(0);
@@ -82,6 +77,15 @@ public class IntegrationTest {
             new Thread() {
                 @Override
                 public void run() {
+                    OneNodeClient client;
+                    try {
+                        client = OneNodeClient.newClient(host, port);
+                    } catch (IOException ioe) {
+                        errorsCounter.incrementAndGet();
+                        log.error("Connection problem", ioe);
+                        return;
+                    }
+
                     ByteBuffer key = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
                     ByteBuffer chunk = ByteBuffer.allocate(ServerStorage.CHUNK_LENGTH);
 
@@ -91,8 +95,12 @@ public class IntegrationTest {
 
                         try {
                             client.push(key, chunk);
-                            if (!Arrays.equals(chunk.array(), client.pull(key).array()))
-                                log.error("Returned result is incorrect.");
+                            if (!Arrays.equals(chunk.array(), client.pull(key).array())) {
+                                throw new IOException("Returned result is incorrect.");
+                            }
+                            if (!client.seek(key)) {
+                                throw new IOException("Can`t seek existed key.");
+                            }
                         } catch (IOException ex) {
                             log.error("Oops!", ex);
                             errorsCounter.incrementAndGet();
@@ -100,10 +108,15 @@ public class IntegrationTest {
 
                         if (r.nextBoolean()) {
                             try {
-                                if (!client.remove(key))
+                                if (!client.remove(key)) {
                                     throw new IOException("OneNodeClient couldn`t remove chunk.");
-                                if (client.pull(key) != null)
+                                }
+                                if (client.pull(key) != null) {
                                     throw new IOException("OneNodeClient returned previously removed chunk.");
+                                }
+                                if (client.seek(key)) {
+                                    throw new IOException("I found removed key.");
+                                }
                             } catch (IOException exception) {
                                 errorsCounter.incrementAndGet();
                                 log.error("Oops!", exception);
@@ -112,15 +125,23 @@ public class IntegrationTest {
                             chunksStored.incrementAndGet();
                         }
 
-                        if (requestsPassed.incrementAndGet() % 1000 == 0)
+                        //if (j % 100 == 0)
+                        //    log.info("{} pull/push/?remove/pull request quads passed by {}.", j, this.hashCode());
+                        if (requestsPassed.incrementAndGet() % 1000 == 0) {
                             log.info("{} pull/push/?remove/pull request quads passed.", requestsPassed.get());
+                        }
 
                     }//for
+
+                    try {
+                        client.close();
+                    } catch (IOException ex) {
+                    }
 
                     log.info("one of clients has just finished.");
                     latch.countDown();
 
-                }//run
+                }
             }.start();
 
         }//while
@@ -132,15 +153,15 @@ public class IntegrationTest {
 
         log.info("Test was passed for {} seconds.", (System.currentTimeMillis() - start) / 1000);
 
-        client.close();
     }//simpleTest
 
     @Ignore
     @Test
     public void clusterTest() throws IOException, InterruptedException {
         File file = new File("test.bin");
-        if (file.exists())
+        if (file.exists()) {
             file.delete();
+        }
         file.createNewFile();
 
         String host = "127.0.0.1";
@@ -179,75 +200,75 @@ public class IntegrationTest {
         }
 
         /*
-        final OneNodeClient client = OneNodeClient.newClient(host, port);
+         final OneNodeClient client = OneNodeClient.newClient(host, port);
 
-        assertTrue(client.isConnected());
+         assertTrue(client.isConnected());
 
-        final int clientsNumber = 10;
-        final int requestsNumber = 1000;
-        final AtomicInteger errorsCounter = new AtomicInteger(0);
-        final AtomicInteger requestsPassed = new AtomicInteger(0);
-        final AtomicInteger chunksStored = new AtomicInteger(0);
-        final CountDownLatch latch = new CountDownLatch(clientsNumber);
+         final int clientsNumber = 10;
+         final int requestsNumber = 1000;
+         final AtomicInteger errorsCounter = new AtomicInteger(0);
+         final AtomicInteger requestsPassed = new AtomicInteger(0);
+         final AtomicInteger chunksStored = new AtomicInteger(0);
+         final CountDownLatch latch = new CountDownLatch(clientsNumber);
 
-        long start = System.currentTimeMillis();
+         long start = System.currentTimeMillis();
 
-        for (int i = 0; i < clientsNumber; i++) {
-            new Thread() {
-                @Override
-                public void run() {
-                    ByteBuffer key = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
-                    ByteBuffer chunk = ByteBuffer.allocate(ServerStorage.CHUNK_LENGTH);
+         for (int i = 0; i < clientsNumber; i++) {
+         new Thread() {
+         @Override
+         public void run() {
+         ByteBuffer key = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
+         ByteBuffer chunk = ByteBuffer.allocate(ServerStorage.CHUNK_LENGTH);
 
-                    for (int j = 0; j < requestsNumber; j++) {
-                        r.nextBytes(key.array());
-                        r.nextBytes(chunk.array());
+         for (int j = 0; j < requestsNumber; j++) {
+         r.nextBytes(key.array());
+         r.nextBytes(chunk.array());
 
-                        try {
-                            client.push(key, chunk);
-                            if (!Arrays.equals(chunk.array(), client.pull(key).array()))
-                                log.error("Returned result is incorrect.");
-                        } catch (IOException ex) {
-                            log.error("Oops!", ex);
-                            errorsCounter.incrementAndGet();
-                        }
+         try {
+         client.push(key, chunk);
+         if (!Arrays.equals(chunk.array(), client.pull(key).array()))
+         log.error("Returned result is incorrect.");
+         } catch (IOException ex) {
+         log.error("Oops!", ex);
+         errorsCounter.incrementAndGet();
+         }
 
-                        if (r.nextBoolean()) {
-                            try {
-                                if (!client.remove(key))
-                                    throw new IOException("OneNodeClient couldn`t remove chunk.");
-                                if (client.pull(key) != null)
-                                    throw new IOException("OneNodeClient returned previously removed chunk.");
-                            } catch (IOException exception) {
-                                errorsCounter.incrementAndGet();
-                                log.error("Oops!", exception);
-                            }
-                        } else {
-                            chunksStored.incrementAndGet();
-                        }
+         if (r.nextBoolean()) {
+         try {
+         if (!client.remove(key))
+         throw new IOException("OneNodeClient couldn`t remove chunk.");
+         if (client.pull(key) != null)
+         throw new IOException("OneNodeClient returned previously removed chunk.");
+         } catch (IOException exception) {
+         errorsCounter.incrementAndGet();
+         log.error("Oops!", exception);
+         }
+         } else {
+         chunksStored.incrementAndGet();
+         }
 
-                        if (requestsPassed.incrementAndGet() % 1000 == 0)
-                            log.info("{} pull/push/?remove/pull request quads passed.", requestsPassed.get());
+         if (requestsPassed.incrementAndGet() % 1000 == 0)
+         log.info("{} pull/push/?remove/pull request quads passed.", requestsPassed.get());
 
-                    }//for
+         }//for
 
-                    log.info("one of clients has just finished.");
-                    latch.countDown();
+         log.info("one of clients has just finished.");
+         latch.countDown();
 
-                }//run
-            }.start();
+         }//run
+         }.start();
 
-        }//while
+         }//while
 
-        latch.await();
+         latch.await();
 
-        assertEquals(0, errorsCounter.get());
-        assertTrue(chunksStored.get() * ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH <= file.length());
+         assertEquals(0, errorsCounter.get());
+         assertTrue(chunksStored.get() * ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH <= file.length());
 
-        log.info("Test was passed for {} seconds.", (System.currentTimeMillis() - start) / 1000);
+         log.info("Test was passed for {} seconds.", (System.currentTimeMillis() - start) / 1000);
 
-        client.close();
-        */
+         client.close();
+         */
     }//clusterTest
 
 }
