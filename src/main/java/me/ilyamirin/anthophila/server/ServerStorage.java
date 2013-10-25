@@ -1,8 +1,6 @@
 package me.ilyamirin.anthophila.server;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections.map.LinkedMap;
-import org.apache.commons.collections.map.MultiKeyMap;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -10,6 +8,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.commons.collections.map.LinkedMap;
+import org.apache.commons.collections.map.MultiKeyMap;
 
 /**
  * @author ilyamirin
@@ -31,6 +31,7 @@ public class ServerStorage {
     private ServerEnigma enigma;
 
     private MultiKeyMap mainIndex;
+
     private List<ServerIndexEntry> condemnedIndex = new ArrayList<>();
 
     private ServerStorage(FileChannel fileChannel, ServerEnigma enigma, ServerParams params, MultiKeyMap mainIndex) {
@@ -45,8 +46,9 @@ public class ServerStorage {
         FileChannel fileChannel = randomAccessFile.getChannel();
         MultiKeyMap mainIndex = MultiKeyMap.decorate(new LinkedMap(params.getInitialIndexSize()));
         ServerStorage serverStorage = new ServerStorage(fileChannel, serverEnigma, params, mainIndex);
-        if (randomAccessFile.length() > 0)
+        if (randomAccessFile.length() > 0) {
             serverStorage.loadExistedStorage();
+        }
         return serverStorage;
     }
 
@@ -55,8 +57,9 @@ public class ServerStorage {
     }
 
     public synchronized void append(ByteBuffer key, ByteBuffer chunk) throws IOException {
-        if (contains(key))
+        if (contains(key)) {
             return;
+        }
 
         ByteBuffer byteBuffer = ByteBuffer.allocate(AUX_CHUNK_INFO_LENGTH + ENCRYPTION_CHUNK_INFO_LENGTH + CHUNK_LENGTH)
                 .put(Byte.MAX_VALUE) //tombstone is off
@@ -80,15 +83,17 @@ public class ServerStorage {
 
         if (condemnedIndex.isEmpty()) {
             long chunkFirstBytePosition = fileChannel.size() + AUX_CHUNK_INFO_LENGTH;
-            while (byteBuffer.hasRemaining())
+            while (byteBuffer.hasRemaining()) {
                 fileChannel.write(byteBuffer, fileChannel.size());
+            }
             ServerIndexEntry entry = new ServerIndexEntry(chunkFirstBytePosition, chunk.array().length);
             mainIndex.put(key.getInt(0), key.getInt(4), key.getInt(8), key.getInt(12), entry);
 
         } else {
             ServerIndexEntry entry = condemnedIndex.get(0);
-            while (byteBuffer.hasRemaining())
+            while (byteBuffer.hasRemaining()) {
                 fileChannel.write(byteBuffer, entry.getChunkPosition() - AUX_CHUNK_INFO_LENGTH);
+            }
             condemnedIndex.remove(0);
             entry.setChunkLength(chunk.array().length);
             mainIndex.put(key.getInt(0), key.getInt(4), key.getInt(8), key.getInt(12), entry);
@@ -98,12 +103,14 @@ public class ServerStorage {
     public synchronized ByteBuffer read(ByteBuffer key) throws IOException {
         ServerIndexEntry indexEntry = (ServerIndexEntry) mainIndex.get(key.getInt(0), key.getInt(4), key.getInt(8), key.getInt(12));
 
-        if (indexEntry == null)
+        if (indexEntry == null) {
             return null;
+        }
 
         ByteBuffer buffer = ByteBuffer.allocate(ENCRYPTION_CHUNK_INFO_LENGTH);
-        while (buffer.hasRemaining())
+        while (buffer.hasRemaining()) {
             fileChannel.read(buffer, indexEntry.getChunkPosition());
+        }
 
         Integer keyHash = buffer.getInt(0);
 
@@ -111,10 +118,10 @@ public class ServerStorage {
         buffer.position(4);
         buffer.get(IV);
 
-        //TODO:: читать чанк вместе к ключом и IV
         ByteBuffer chunk = ByteBuffer.allocate(indexEntry.getChunkLength());
-        while (chunk.hasRemaining())
+        while (chunk.hasRemaining()) {
             fileChannel.read(chunk, indexEntry.getChunkPosition() + ENCRYPTION_CHUNK_INFO_LENGTH);
+        }
 
         if (keyHash == 0) {
             return chunk;
@@ -154,17 +161,19 @@ public class ServerStorage {
 
             ServerIndexEntry indexEntry = new ServerIndexEntry(chunkPosition, chunkLength);
 
-            if (tombstone == Byte.MAX_VALUE)
+            if (tombstone == Byte.MAX_VALUE) {
                 mainIndex.put(key.getInt(0), key.getInt(4), key.getInt(8), key.getInt(12), indexEntry);
-            else
+            } else {
                 condemnedIndex.add(indexEntry);
+            }
 
             position = chunkPosition + ENCRYPTION_CHUNK_INFO_LENGTH + CHUNK_LENGTH;
 
             buffer.clear();
 
-            if (++chunksSuccessfullyLoaded % 1000 == 0)
+            if (++chunksSuccessfullyLoaded % 1000 == 0) {
                 log.info("{} chunks were successfully loaded", chunksSuccessfullyLoaded);
+            }
         }//while
 
         log.info("{} chunks were successfully loaded", chunksSuccessfullyLoaded);
