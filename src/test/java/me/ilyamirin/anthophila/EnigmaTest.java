@@ -1,9 +1,6 @@
 package me.ilyamirin.anthophila;
 
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -20,7 +17,6 @@ import me.ilyamirin.anthophila.server.ServerStorage;
 import org.bouncycastle.util.Arrays;
 import org.junit.Test;
 import static org.junit.Assert.*;
-import org.junit.Before;
 
 //TODO:: add old keys switch test
 

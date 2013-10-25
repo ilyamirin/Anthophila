@@ -3,23 +3,19 @@ package me.ilyamirin.anthophila;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
 import me.ilyamirin.anthophila.common.Topology;
 
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import me.ilyamirin.anthophila.common.Node;
 
 import static org.junit.Assert.*;
-
 
 /**
  *
@@ -32,24 +28,24 @@ public class TopologyTest {
 
     private void testTopology(Topology topology) {
         List<Byte> first = Lists.newArrayList((byte) 0);
-        Set<Topology.Node> nodesForFirst = Sets.newHashSet(new Topology.Node("127.0.0.1", 999), new Topology.Node("127.0.0.4", 999));
+        Set<Node> nodesForFirst = Sets.newHashSet(new Node("127.0.0.1", 999), new Node("127.0.0.4", 999));
         topology.getKeyMasks().put(first, nodesForFirst);
 
         List<Byte> second = Lists.newArrayList((byte) 1, (byte) 0);
-        Set<Topology.Node> nodesForSecond = Sets.newHashSet(new Topology.Node("127.0.0.2", 999));
+        Set<Node> nodesForSecond = Sets.newHashSet(new Node("127.0.0.2", 999));
         topology.getKeyMasks().put(second, nodesForSecond);
 
         List<Byte> third = Lists.newArrayList((byte) 1, (byte) 1);
-        Set<Topology.Node> nodesForThird = Sets.newHashSet(new Topology.Node("127.0.0.3", 999));
+        Set<Node> nodesForThird = Sets.newHashSet(new Node("127.0.0.3", 999));
         topology.getKeyMasks().put(third, nodesForThird);
 
-        byte[] keyForFirstNode = new byte[] { 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0 };
+        byte[] keyForFirstNode = new byte[]{0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0};
         assertTrue(Sets.symmetricDifference(topology.findNodes(ByteBuffer.wrap(keyForFirstNode)), nodesForFirst).isEmpty());
 
-        byte[] keyForSecondNode = new byte[] { 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0 };
+        byte[] keyForSecondNode = new byte[]{1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0};
         assertTrue(Sets.symmetricDifference(topology.findNodes(ByteBuffer.wrap(keyForSecondNode)), nodesForSecond).isEmpty());
 
-        byte[] keyForThirdNode = new byte[] { 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0 };
+        byte[] keyForThirdNode = new byte[]{1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0};
         assertTrue(Sets.symmetricDifference(topology.findNodes(ByteBuffer.wrap(keyForThirdNode)), nodesForThird).isEmpty());
     }
 
