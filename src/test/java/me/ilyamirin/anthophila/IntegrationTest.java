@@ -10,7 +10,6 @@ import me.ilyamirin.anthophila.common.Topology;
 import me.ilyamirin.anthophila.server.Server;
 import me.ilyamirin.anthophila.server.ServerParams;
 import me.ilyamirin.anthophila.server.ServerStorage;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
@@ -20,39 +19,38 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import me.ilyamirin.anthophila.client.ClusterClient;
 import me.ilyamirin.anthophila.common.Node;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
+import org.junit.Ignore;
 
 /**
  * @author ilyamirin
  */
 @Slf4j
 public class IntegrationTest {
+    
+                        
+    private Random r = ThreadLocalRandom.current();
 
     @Data
     @AllArgsConstructor
     private class Pair {
 
-        private ByteBuffer key;
-        private ByteBuffer value;
+        private byte[] key;
+        private byte[] value;
     }
 
-    private Random r = new Random();
-
-    //@Ignore
+    @Ignore
     @Test
     public void simpleTest() throws IOException, InterruptedException {
         File file = new File("test.bin");
@@ -91,11 +89,9 @@ public class IntegrationTest {
         final int requestsNumber = 1000;
         final AtomicInteger errorsCounter = new AtomicInteger(0);
         final AtomicInteger requestsPassed = new AtomicInteger(0);
-        final AtomicInteger chunksProcessed = new AtomicInteger(0);
         final CountDownLatch latch = new CountDownLatch(clientsNumber);
         final List<Pair> storedChunks = Collections.synchronizedList(new ArrayList<Pair>());
-        final List<ByteBuffer> removedKeys = Collections.synchronizedList(new ArrayList<ByteBuffer>());
-
+                
         long start = System.currentTimeMillis();
 
         for (int i = 0; i < clientsNumber; i++) {
@@ -110,11 +106,11 @@ public class IntegrationTest {
                         log.error("Connection problem", ioe);
                         return;
                     }
-
-                    ByteBuffer key = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
-                    ByteBuffer chunk = ByteBuffer.allocate(ServerStorage.CHUNK_LENGTH);
-
+                    
                     for (int j = 0; j < requestsNumber; j++) {
+                        ByteBuffer key = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
+                        ByteBuffer chunk = ByteBuffer.allocate(ServerStorage.CHUNK_LENGTH);
+                        
                         r.nextBytes(key.array());
                         r.nextBytes(chunk.array());
 
@@ -136,10 +132,8 @@ public class IntegrationTest {
                                 if (client.seek(key)) {
                                     throw new IOException("I have just found removed key.");
                                 }
-                                removedKeys.add(key);
                             } else {
-                                chunksProcessed.incrementAndGet();
-                                storedChunks.add(new Pair(key, chunk));
+                                storedChunks.add(new Pair(key.array(), chunk.array()));
                             }
 
                         } catch (IOException ex) {
@@ -147,8 +141,6 @@ public class IntegrationTest {
                             errorsCounter.incrementAndGet();
                         }
 
-                        //if (j % 100 == 0)
-                        //    log.info("{} pull/push/?remove/pull request quads passed by {}.", j, this.hashCode());
                         if (requestsPassed.incrementAndGet() % 1000 == 0) {
                             log.info("{} pull/push/?remove/pull request quads passed.", requestsPassed.get());
                         }
@@ -172,27 +164,26 @@ public class IntegrationTest {
 
         log.info("All chunks were loaded for {} seconds.", (System.currentTimeMillis() - start) / 1000);
 
-        assertEquals(0, errorsCounter.get());
-
+        assertTrue(0 == errorsCounter.get());
+                
         OneNodeClient client = OneNodeClient.newClient(host, port);
         int chunksChecked = 0;
         for (Pair pair : storedChunks) {
-            if (removedKeys.contains(pair.getKey())) {
-                continue;
+            assertTrue(client.seek(ByteBuffer.wrap(pair.getKey())));
+            assertTrue(Arrays.equals(pair.getValue(), client.pull(ByteBuffer.wrap(pair.getKey())).array()));
+            if (++chunksChecked % requestsNumber == 0) {
+                log.info("{} loaded chunks checked.", chunksChecked);
             }
-            assertTrue(client.seek(pair.getKey()));
-            assertTrue(Arrays.equals(pair.getValue().array(), client.pull(pair.getKey()).array()));
-            if (++chunksChecked % 10 == 0) {
-                log.info("{} chunks were checked.", requestsPassed.get());
-            }
-
         }
 
-        assertTrue(chunksProcessed.get() * ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH <= file.length());
+        long bruteAllocatedSpace = storedChunks.size() * ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH;
+        log.info("Expecting near {} Mb of disk used space.", bruteAllocatedSpace / 1000000);
+        
+        assertTrue(bruteAllocatedSpace * 1.1 >= file.length() - ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH);
+        assertTrue(bruteAllocatedSpace * 0.9 <= file.length() - ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH);
 
     }//simpleTest
 
-    @Ignore
     @Test
     public void clusterTest() throws IOException, InterruptedException {
         String host = "127.0.0.1";
@@ -214,8 +205,9 @@ public class IntegrationTest {
 
         int serversCount = 2;
 
+        List<File> storages = Lists.newArrayList();
+        
         for (int i = 0; i < serversCount; i++) {
-
             String fileName = String.format("test%s.bin", i);
             File file = new File(fileName);
 
@@ -223,6 +215,7 @@ public class IntegrationTest {
                 file.delete();
             }
             file.createNewFile();
+            storages.add(file);
 
             ServerParams serverParams = new ServerParams();
             serverParams.setStorageFile(file.getAbsolutePath());
@@ -245,108 +238,85 @@ public class IntegrationTest {
             writer.close();
 
             Server.main(String.format("server%s.json", i));
-            Thread.sleep(1000);
 
         }//for initial
 
-        final ClusterClient client = ClusterClient.newClusterClient(topology);
+        Thread.sleep(1000);
+
+        ClusterClient client = ClusterClient.newClusterClient(topology);
 
         for (Map.Entry<Node, OneNodeClient> entry : client.getClients().entrySet()) {
             assertTrue(entry.getValue().isConnected());
         }
 
-        final int clientsNumber = 10;
         final int requestsNumber = 1000;
-        final AtomicInteger errorsCounter = new AtomicInteger(0);
         final AtomicInteger requestsPassed = new AtomicInteger(0);
-        final AtomicInteger chunksStored = new AtomicInteger(0);
-        final CountDownLatch latch = new CountDownLatch(clientsNumber);
-        final ConcurrentMap<ByteBuffer, ByteBuffer> chunks = Maps.newConcurrentMap();
+        final List<Pair> storedChunks = Collections.synchronizedList(new ArrayList<Pair>());
 
         long start = System.currentTimeMillis();
 
-        for (int i = 0; i < clientsNumber; i++) {
-            new Thread() {
-                @Override
-                public void run() {
-                    Random r = new Random();
+        for (int i = 0; i < requestsNumber; i++) {
+            ByteBuffer key = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
+            r.nextBytes(key.array());
 
-                    ByteBuffer key = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
-                    ByteBuffer chunk = ByteBuffer.allocate(ServerStorage.CHUNK_LENGTH);
+            ByteBuffer chunk = ByteBuffer.allocate(ServerStorage.CHUNK_LENGTH);
+            r.nextBytes(chunk.array());
+            
+            client.push(key, chunk);
 
-                    for (int j = 0; j < requestsNumber; j++) {
-                        r.nextBytes(key.array());
-                        r.nextBytes(chunk.array());
+            assertTrue(Arrays.equals(chunk.array(), client.pull(key).array()));
+            assertTrue(client.seek(key));
 
-                        try {
-                            client.push(key, chunk);
-                            if (!Arrays.equals(chunk.array(), client.pull(key).array())) {
-                                throw new IOException("Returned result is incorrect.");
-                            }
-                            if (!client.seek(key)) {
-                                throw new IOException("Can`t seek existed key.");
-                            }
-                        } catch (IOException ex) {
-                            log.error("Oops!", ex);
-                            errorsCounter.incrementAndGet();
-                        }
+            if (r.nextBoolean()) {
+                assertTrue(client.remove(key));
+                assertNull(client.pull(key));
+                assertFalse(client.seek(key));
+            } else {
+                storedChunks.add(new Pair(key.array(), chunk.array()));
+            }
 
-                        if (r.nextBoolean()) {
-                            try {
-                                if (!client.remove(key)) {
-                                    throw new IOException("OneNodeClient couldn`t remove chunk.");
-                                }
-                                if (client.pull(key) != null) {
-                                    throw new IOException("OneNodeClient returned previously removed chunk.");
-                                }
-                                if (client.seek(key)) {
-                                    throw new IOException("I found removed key.");
-                                }
-                            } catch (IOException exception) {
-                                errorsCounter.incrementAndGet();
-                                log.error("Oops!", exception);
-                            }
-                        } else {
-                            chunksStored.incrementAndGet();
-                            key.rewind();
-                            chunk.rewind();
-                            chunks.putIfAbsent(key, chunk);
-                        }
+            if (requestsPassed.incrementAndGet() % 1000 == 0) {
+                log.info("{} pull/push/?remove/pull request quads passed.", requestsPassed.get());
+            }
 
-                        //if (j % 100 == 0)
-                        //    log.info("{} pull/push/?remove/pull request quads passed by {}.", j, this.hashCode());
-                        if (requestsPassed.incrementAndGet() % 1000 == 0) {
-                            log.info("{} pull/push/?remove/pull request quads passed.", requestsPassed.get());
-                        }
+        }//for
 
-                    }//for
-
-                    log.info("one of clients has just finished.");
-                    latch.countDown();
-
-                }//run
-            }.start();
+        try {
+            client.close();
+        } catch (IOException ex) {
         }
 
-        latch.await();
-
-        assertEquals(0, errorsCounter.get());
-        log.info("Test was passed for {} seconds.", (System.currentTimeMillis() - start) / 1000);
-
-        for (ConcurrentMap.Entry<ByteBuffer, ByteBuffer> entry : chunks.entrySet()) {
-            entry.getKey().rewind();
-            log.info("{}", entry.getKey());
-            log.info("{}", client.pull(entry.getKey()));
-            assertTrue(Arrays.equals(entry.getValue().array(), client.pull(entry.getKey()).array()));
+        log.info("All chunks were loaded for {} seconds.", (System.currentTimeMillis() - start) / 1000);
+        
+        int pairsChecked = 0;
+        Map<Node, OneNodeClient> clients = Maps.newHashMap();
+        for (Pair pair : storedChunks) {
+            ByteBuffer keyBuffer = ByteBuffer.wrap(pair.key);
+            for (Node node : topology.findNodes(keyBuffer)) {
+                if (!clients.containsKey(node)) {
+                    clients.put(node, OneNodeClient.newClient(node.getHost(), node.getPort()));
+                }
+                OneNodeClient nodeClient = clients.get(node);
+                assertTrue(nodeClient.seek(keyBuffer));
+                assertTrue(Arrays.equals(pair.getValue(), nodeClient.pull(keyBuffer).array()));
+            }
+            if (++pairsChecked % requestsNumber == 0) {
+                log.info("{} chunk pairs were checked.", pairsChecked);
+            }
         }
+        
+        long expectedSpace = storedChunks.size() * ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH;
+        long totalSpace = 0;
+        
+        for (File file : storages) {
+            assertTrue(file.length() <= expectedSpace * 1.1 / storages.size());
+            assertTrue(file.length() >= expectedSpace * 0.9 / storages.size());
+            totalSpace += file.length();
+        }
+        
+        assertTrue(totalSpace <= expectedSpace * 1.1);
+        assertTrue(totalSpace >= expectedSpace * 0.9);
 
-        client.close();
-
-        /*
-
-         assertTrue(chunksStored.get() * ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH <= file.length());
-
-         */
     }//clusterTest
 
 }
