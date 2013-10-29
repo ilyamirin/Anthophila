@@ -1,5 +1,7 @@
 package me.ilyamirin.anthophila.server;
 
+import com.google.common.hash.BloomFilter;
+import com.google.common.hash.Funnels;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -18,8 +20,8 @@ import org.apache.commons.collections.map.MultiKeyMap;
 public class ServerStorage {
 
     public static final int CHUNK_LENGTH = 65536;
-    public static final int MD5_HASH_LENGTH = 16; //md5 hash length (16 bytes)
-    public static final int AUX_CHUNK_INFO_LENGTH = 1 + MD5_HASH_LENGTH + 4; //tombstone + hash + chunk length (int)
+    public static final int KEY_LENGTH = 16; //md5 hash length (16 bytes)
+    public static final int AUX_CHUNK_INFO_LENGTH = 1 + KEY_LENGTH + 4; //tombstone + hash + chunk length (int)
     public static final int IV_LENGTH = 8; //IV for Salsa cipher
     public static final int ENCRYPTION_CHUNK_INFO_LENGTH = 4 + IV_LENGTH; //cipher key has in int + IV
     public static final int WHOLE_CHUNK_WITH_META_LENGTH = AUX_CHUNK_INFO_LENGTH + ENCRYPTION_CHUNK_INFO_LENGTH + CHUNK_LENGTH; //total chunk with meta space
@@ -46,9 +48,6 @@ public class ServerStorage {
         FileChannel fileChannel = randomAccessFile.getChannel();
         MultiKeyMap mainIndex = MultiKeyMap.decorate(new LinkedMap(params.getInitialIndexSize()));
         ServerStorage serverStorage = new ServerStorage(fileChannel, serverEnigma, params, mainIndex);
-        if (randomAccessFile.length() > 0) {
-            serverStorage.loadExistedStorage();
-        }
         return serverStorage;
     }
 
@@ -140,21 +139,23 @@ public class ServerStorage {
         }
     }
 
-    private void loadExistedStorage() throws IOException {
+    public BloomFilter loadExistedStorage() throws IOException {
         log.info("Start loading data from existed database file.");
 
         ByteBuffer buffer = ByteBuffer.allocate(AUX_CHUNK_INFO_LENGTH);
         long chunksSuccessfullyLoaded = 0;
         long position = 0;
 
+        BloomFilter<byte[]> filter = BloomFilter.create(Funnels.byteArrayFunnel(), params.getMaxExpectedSize(), 0.01);
+        
         while (fileChannel.read(buffer, position) > 0) {
             buffer.rewind();
 
             byte tombstone = buffer.get();
 
-            byte[] md5HashArray = new byte[MD5_HASH_LENGTH];
-            buffer.get(md5HashArray);
-            ByteBuffer key = ByteBuffer.wrap(md5HashArray);
+            byte[] keyArray = new byte[KEY_LENGTH];
+            buffer.get(keyArray);
+            ByteBuffer key = ByteBuffer.wrap(keyArray);
 
             int chunkLength = buffer.getInt();
             long chunkPosition = position + AUX_CHUNK_INFO_LENGTH;
@@ -163,6 +164,7 @@ public class ServerStorage {
 
             if (tombstone == Byte.MAX_VALUE) {
                 mainIndex.put(key.getInt(0), key.getInt(4), key.getInt(8), key.getInt(12), indexEntry);
+                filter.put(keyArray);
             } else {
                 condemnedIndex.add(indexEntry);
             }
@@ -178,5 +180,6 @@ public class ServerStorage {
 
         log.info("{} chunks were successfully loaded", chunksSuccessfullyLoaded);
 
+        return filter;
     }//loadExistedStorage
 }

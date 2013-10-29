@@ -11,6 +11,7 @@ public class ServerParams {
     private String storageFile;
 
     private int initialIndexSize;
+    private int maxExpectedSize;
 
     private String host;
     private int port;

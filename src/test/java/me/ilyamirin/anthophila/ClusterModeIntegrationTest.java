@@ -51,17 +51,19 @@ public class ClusterModeIntegrationTest {
         Set<Node> nodes = Sets.newHashSet(new Node(host, 7620));
         topology.addKeyMask(mask, nodes);
 
-        mask = Lists.newArrayList((byte) 1);
+        mask = Lists.newArrayList((byte) 1, (byte) 0);
         nodes = Sets.newHashSet(new Node(host, 7621));
         topology.addKeyMask(mask, nodes);
 
+        mask = Lists.newArrayList((byte) 1, (byte) 1);
+        nodes = Sets.newHashSet(new Node(host, 7622));
+        topology.addKeyMask(mask, nodes);
+        
         FileWriter writer = new FileWriter("topology.json");
         new Gson().toJson(topology.getKeyMasks(), writer);
         writer.close();
 
-        int serversCount = 2;
-
-        List<File> storages = Lists.newArrayList();
+        int serversCount = 3;
 
         for (int i = 0; i < serversCount; i++) {
             String fileName = String.format("test%s.bin", i);
@@ -71,12 +73,11 @@ public class ClusterModeIntegrationTest {
                 file.delete();
             }
             file.createNewFile();
-            storages.add(file);
 
             ServerParams serverParams = new ServerParams();
             serverParams.setStorageFile(file.getAbsolutePath());
 
-            serverParams.setInitialIndexSize(5000);
+            serverParams.setInitialIndexSize(100);
 
             serverParams.setHost(host);
             serverParams.setPort(port + i);
@@ -97,7 +98,7 @@ public class ClusterModeIntegrationTest {
 
         }//for initial
 
-        Thread.sleep(1000);
+        Thread.sleep(1500);
 
         ClusterClient client = ClusterClient.newClusterClient(topology);
 
@@ -105,14 +106,14 @@ public class ClusterModeIntegrationTest {
             assertTrue(entry.getValue().isConnected());
         }
 
-        final int requestsNumber = 1000;
+        final int requestsNumber = 10000;
         final AtomicInteger requestsPassed = new AtomicInteger(0);
         final List<Pair> storedChunks = Collections.synchronizedList(new ArrayList<Pair>());
 
         long start = System.currentTimeMillis();
 
         for (int i = 0; i < requestsNumber; i++) {
-            ByteBuffer key = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
+            ByteBuffer key = ByteBuffer.allocate(ServerStorage.KEY_LENGTH);
             r.nextBytes(key.array());
 
             ByteBuffer chunk = ByteBuffer.allocate(ServerStorage.CHUNK_LENGTH);
@@ -164,12 +165,21 @@ public class ClusterModeIntegrationTest {
         long expectedSpace = storedChunks.size() * ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH;
         long totalSpace = 0;
 
-        for (File file : storages) {
-            assertTrue(file.length() <= expectedSpace * 1.1 / storages.size());
-            assertTrue(file.length() >= expectedSpace * 0.9 / storages.size());
-            totalSpace += file.length();
-        }
+        File file = new File("test0.bin");
+        assertTrue(file.length() <= expectedSpace * 1.1 / 2);
+        assertTrue(file.length() >= expectedSpace * 0.9 / 2);
+        totalSpace += file.length();
 
+        file = new File("test1.bin");
+        assertTrue(file.length() <= expectedSpace * 1.1 / 4);
+        assertTrue(file.length() >= expectedSpace * 0.9 / 4);
+        totalSpace += file.length();
+
+        file = new File("test2.bin");
+        assertTrue(file.length() <= expectedSpace * 1.1 / 4);
+        assertTrue(file.length() >= expectedSpace * 0.9 / 4);
+        totalSpace += file.length();
+        
         assertTrue(totalSpace <= expectedSpace * 1.1);
         assertTrue(totalSpace >= expectedSpace * 0.9);
 

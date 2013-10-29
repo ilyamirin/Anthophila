@@ -39,7 +39,7 @@ public class OneNodeClient implements Client {
         key.rewind();
         chunk.rewind();
 
-        ByteBuffer request = ByteBuffer.allocate(1 + ServerStorage.MD5_HASH_LENGTH + 4 + chunk.limit());
+        ByteBuffer request = ByteBuffer.allocate(1 + ServerStorage.KEY_LENGTH + 4 + chunk.limit());
         request.put(Server.OperationTypes.PUSHING); //push chunk operation
         request.put(key);
         request.putInt(chunk.limit());
@@ -50,7 +50,7 @@ public class OneNodeClient implements Client {
             socketChannel.write(request);
         }
 
-        ByteBuffer returnedKey = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
+        ByteBuffer returnedKey = ByteBuffer.allocate(ServerStorage.KEY_LENGTH);
         while (returnedKey.hasRemaining()) {
             socketChannel.read(returnedKey);
         }
@@ -82,7 +82,7 @@ public class OneNodeClient implements Client {
 
         key.rewind();
 
-        ByteBuffer request = ByteBuffer.allocate(1 + ServerStorage.MD5_HASH_LENGTH);
+        ByteBuffer request = ByteBuffer.allocate(1 + ServerStorage.KEY_LENGTH);
         request.put(Server.OperationTypes.PULLING);
         request.put(key);
 
@@ -91,7 +91,7 @@ public class OneNodeClient implements Client {
             socketChannel.write(request);
         }
 
-        ByteBuffer returnedKey = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
+        ByteBuffer returnedKey = ByteBuffer.allocate(ServerStorage.KEY_LENGTH);
         while (returnedKey.hasRemaining()) {
             socketChannel.read(returnedKey);
         }
@@ -134,7 +134,7 @@ public class OneNodeClient implements Client {
 
         key.rewind();
 
-        ByteBuffer request = ByteBuffer.allocate(1 + ServerStorage.MD5_HASH_LENGTH);
+        ByteBuffer request = ByteBuffer.allocate(1 + ServerStorage.KEY_LENGTH);
         request.put(Server.OperationTypes.REMOVING);
         request.put(key);
 
@@ -143,7 +143,7 @@ public class OneNodeClient implements Client {
             socketChannel.write(request);
         }
 
-        ByteBuffer returnedKey = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
+        ByteBuffer returnedKey = ByteBuffer.allocate(ServerStorage.KEY_LENGTH);
         while (returnedKey.hasRemaining()) {
             socketChannel.read(returnedKey);
         }
@@ -172,7 +172,7 @@ public class OneNodeClient implements Client {
 
         key.rewind();
 
-        ByteBuffer request = ByteBuffer.allocate(1 + ServerStorage.MD5_HASH_LENGTH);
+        ByteBuffer request = ByteBuffer.allocate(1 + ServerStorage.KEY_LENGTH);
         request.put(Server.OperationTypes.SEEKING);
         request.put(key);
 
@@ -181,7 +181,7 @@ public class OneNodeClient implements Client {
             socketChannel.write(request);
         }
 
-        ByteBuffer returnedKey = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
+        ByteBuffer returnedKey = ByteBuffer.allocate(ServerStorage.KEY_LENGTH);
         while (returnedKey.hasRemaining()) {
             socketChannel.read(returnedKey);
         }

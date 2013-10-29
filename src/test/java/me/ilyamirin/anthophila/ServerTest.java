@@ -55,12 +55,12 @@ public class ServerTest {
 
         ServerEnigma serverEnigma = ServerEnigma.newServerEnigma(serverParams);
         ServerStorage serverStorage = ServerStorage.newServerStorage(serverParams, serverEnigma);
-        Server server = new Server(serverParams, serverStorage, new Topology());
-        server.start();
+       // Server server = new Server(serverParams, serverStorage, new Topology());
+       // server.start();
 
         Thread.sleep(1000);
 
-        ByteBuffer key = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
+        ByteBuffer key = ByteBuffer.allocate(ServerStorage.KEY_LENGTH);
         ByteBuffer chunk = ByteBuffer.allocate(ServerStorage.CHUNK_LENGTH);
 
         r.nextBytes(key.array());

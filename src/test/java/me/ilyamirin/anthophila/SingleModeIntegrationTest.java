@@ -27,7 +27,7 @@ import static org.junit.Assert.*;
  * @author ilyamirin
  */
 @Slf4j
-public class IntegrationTest {
+public class SingleModeIntegrationTest {
                             
     private Random r = ThreadLocalRandom.current();
 
@@ -88,7 +88,7 @@ public class IntegrationTest {
                     }
                     
                     for (int j = 0; j < requestsNumber; j++) {
-                        ByteBuffer key = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
+                        ByteBuffer key = ByteBuffer.allocate(ServerStorage.KEY_LENGTH);
                         ByteBuffer chunk = ByteBuffer.allocate(ServerStorage.CHUNK_LENGTH);
                         
                         r.nextBytes(key.array());

@@ -43,7 +43,7 @@ public class StorageTest {
             ByteBuffer md5Hash;
             ByteBuffer chunk;
             while (counter < cuncurrentRequestsNumber) {
-                md5Hash = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
+                md5Hash = ByteBuffer.allocate(ServerStorage.KEY_LENGTH);
                 r.nextBytes(md5Hash.array());
                 chunk = ByteBuffer.allocate(ServerStorage.CHUNK_LENGTH);
                 r.nextBytes(chunk.array());
@@ -110,6 +110,7 @@ public class StorageTest {
         ServerEnigma enigma = ServerEnigma.newServerEnigma(ServerEnigma.generateKeys(10), new HashMap<Integer, String>());
 
         storage = ServerStorage.newServerStorage(params, enigma);
+        storage.loadExistedStorage();
     }
 
     @Test
@@ -117,7 +118,7 @@ public class StorageTest {
         cleanStorageFile();
         setUp(false);
 
-        ByteBuffer md5Hash = ByteBuffer.allocate(ServerStorage.MD5_HASH_LENGTH);
+        ByteBuffer md5Hash = ByteBuffer.allocate(ServerStorage.KEY_LENGTH);
         r.nextBytes(md5Hash.array());
         ByteBuffer chunk = ByteBuffer.allocate(ServerStorage.CHUNK_LENGTH);
         r.nextBytes(chunk.array());

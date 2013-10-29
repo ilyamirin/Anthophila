@@ -72,7 +72,7 @@ public class EnigmaTest {
             new Thread() {
                 @Override
                 public void run() {
-                    byte[] chunkMd5Hash = new byte[ServerStorage.MD5_HASH_LENGTH];
+                    byte[] chunkMd5Hash = new byte[ServerStorage.KEY_LENGTH];
                     byte[] chunk = new byte[ServerStorage.CHUNK_LENGTH];
                     for (int i = 0; i < chunksPerProcess; i++) {
                         r.nextBytes(chunkMd5Hash);

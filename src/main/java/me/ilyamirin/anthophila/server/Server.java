@@ -1,5 +1,7 @@
 package me.ilyamirin.anthophila.server;
 
+import com.google.common.hash.BloomFilter;
+import com.google.common.hash.Funnels;
 import com.google.gson.Gson;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
@@ -7,11 +9,17 @@ import lombok.extern.slf4j.Slf4j;
 import me.ilyamirin.anthophila.common.Topology;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import static me.ilyamirin.anthophila.server.ServerStorage.AUX_CHUNK_INFO_LENGTH;
+import static me.ilyamirin.anthophila.server.ServerStorage.CHUNK_LENGTH;
+import static me.ilyamirin.anthophila.server.ServerStorage.ENCRYPTION_CHUNK_INFO_LENGTH;
+import static me.ilyamirin.anthophila.server.ServerStorage.KEY_LENGTH;
 
 @Slf4j
 @AllArgsConstructor
@@ -39,6 +47,8 @@ public class Server extends Thread {
     @NonNull
     private ServerStorage storage;
     private Topology topology;
+    @NonNull
+    private BloomFilter<byte[]> bloomFilter;
 
     @Override
     public void run() {
@@ -55,7 +65,7 @@ public class Server extends Thread {
             while (serverSocketChannel.isOpen()) {
                 SocketChannel channel = serverSocketChannel.accept();
                 if (channel != null) {
-                    executor.execute(new ServerWorker(params, storage, topology, channel));
+                    executor.execute(new ServerWorker(params, storage, topology, channel, bloomFilter));
                 }
             }//while
 
@@ -63,16 +73,22 @@ public class Server extends Thread {
             log.error("Oops!", x);
 
         }//try ServerSocketChannel
-    }//run
+    }//run    
 
     public static void main(String... args) throws IOException {
         String pathToConfig = args.length > 0 ? args[0] : "server.json";
         ServerParams serverParams = new Gson().fromJson(new FileReader(pathToConfig), ServerParams.class);
         log.info("{}", serverParams);
+        
         Topology topology = serverParams.isServeAll() ? null : Topology.loadFromFile(serverParams.getTopologyFile());
+        
         ServerEnigma serverEnigma = ServerEnigma.newServerEnigma(serverParams);
+        
         ServerStorage serverStorage = ServerStorage.newServerStorage(serverParams, serverEnigma);
-        Server server = new Server(serverParams, serverStorage, topology);
+
+        BloomFilter<byte[]> bloomFilter = serverStorage.loadExistedStorage();
+        
+        Server server = new Server(serverParams, serverStorage, topology, bloomFilter);        
         server.start();
     }
 
