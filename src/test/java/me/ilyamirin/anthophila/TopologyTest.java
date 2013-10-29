@@ -12,7 +12,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Set;
 import me.ilyamirin.anthophila.common.Node;
 
 import static org.junit.Assert.*;
@@ -38,7 +37,7 @@ public class TopologyTest {
         List<Byte> third = Lists.newArrayList((byte) 1, (byte) 1);
         List<Node> nodesForThird = Lists.newArrayList(new Node("127.0.0.3", 999));
         topology.getKeyMasks().put(third, nodesForThird);
-        
+
         byte[] keyForFirstNode = new byte[]{0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0};
         assertEquals(topology.findNodes(ByteBuffer.wrap(keyForFirstNode)), nodesForFirst);
 
@@ -62,9 +61,9 @@ public class TopologyTest {
         assertTrue(Sets.symmetricDifference(loadedTopology.getKeyMasks().keySet(), topology.getKeyMasks().keySet()).isEmpty());
         testTopology(loadedTopology);
     }//testEnigma
-    
+
     @Test
-    public void testNode() {
+    public void testNodeClass() {
         assertEquals(new Node("127.0.0.1", 999), new Node("127.0.0.1", 999));
         assertNotEquals(new Node("127.0.0.1", 999), new Node("127.0.0.4", 999));
         assertNotEquals(new Node("127.0.0.1", 999), new Node("127.0.0.1", 1001));

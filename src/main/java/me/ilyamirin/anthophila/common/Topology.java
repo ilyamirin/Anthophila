@@ -12,7 +12,6 @@ import me.ilyamirin.anthophila.server.ServerParams;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,7 +48,9 @@ public class Topology {
             if (getNodes().containsKey(node)) {
                 getNodes().get(node).add(mask);
             } else {
-                getNodes().put(node, (Set) Sets.newHashSet(mask));
+                Set<List<Byte>> set = Sets.newHashSet();
+                set.add(mask);
+                getNodes().put(node, set);
             }
         }
     }
@@ -65,7 +66,7 @@ public class Topology {
         return true;
     }
 
-    public List<Node> findNodes(ByteBuffer key) {        
+    public List<Node> findNodes(ByteBuffer key) {
         for (Map.Entry<List<Byte>, List<Node>> entry : keyMasks.entrySet()) {
             key.rewind();
             if (applyKeyToMask(key, entry.getKey())) {

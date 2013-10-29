@@ -32,7 +32,7 @@ public class ClusterClient implements Client {
         }
         return new ClusterClient(clients, topology);
     }
-    
+
     @Override
     public boolean push(ByteBuffer key, ByteBuffer chunk) throws IOException {
         List<Node> nodes = new ArrayList<>(topology.findNodes(key));

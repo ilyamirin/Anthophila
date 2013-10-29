@@ -1,5 +1,6 @@
 package me.ilyamirin.anthophila;
 
+import com.google.common.collect.Lists;
 import com.google.gson.Gson;
 import lombok.extern.slf4j.Slf4j;
 import me.ilyamirin.anthophila.client.OneNodeClient;
@@ -20,7 +21,9 @@ import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
+import me.ilyamirin.anthophila.common.Node;
 import me.ilyamirin.anthophila.common.Pair;
+import me.ilyamirin.anthophila.common.Topology;
 import static org.junit.Assert.*;
 
 /**
@@ -41,6 +44,20 @@ public class SingleModeIntegrationTest {
 
         final String host = "127.0.0.1";
         final int port = 7619;
+        
+        Topology topology = new Topology();
+
+        List<Byte> mask = Lists.newArrayList((byte) 0);
+        List<Node> nodes = Lists.newArrayList(new Node(host, port));
+        topology.addKeyMask(mask, nodes);
+
+        mask = Lists.newArrayList((byte) 1);
+        nodes = Lists.newArrayList(new Node(host, port));
+        topology.addKeyMask(mask, nodes);
+
+        FileWriter writer = new FileWriter("topology.json");
+        new Gson().toJson(topology.getKeyMasks(), writer);
+        writer.close();        
 
         ServerParams serverParams = new ServerParams();
         serverParams.setStorageFile("test.bin");
@@ -57,8 +74,10 @@ public class SingleModeIntegrationTest {
         serverParams.setMaxConnections(10);
 
         serverParams.setServeAll(true);
+        
+        serverParams.setTopologyFile("topology.json");
 
-        FileWriter writer = new FileWriter("server.json");
+        writer = new FileWriter("server.json");
         new Gson().toJson(serverParams, ServerParams.class, writer);
         writer.close();
 

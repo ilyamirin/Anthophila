@@ -6,7 +6,9 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import me.ilyamirin.anthophila.client.ReplicationClient;
 import me.ilyamirin.anthophila.common.Topology;
 
 /**
@@ -21,11 +23,15 @@ public class ServerWorker implements Runnable {
     protected ServerParams params;
     @NonNull
     protected ServerStorage storage;
+    @NonNull
     protected Topology topology;
     @NonNull
     protected SocketChannel channel;
     @NonNull
-    private BloomFilter<byte[]> filter;    
+    private BloomFilter<byte[]> filter;
+    @NonNull
+    private ReplicationClient replicationClient;
+    private boolean isAnotherNode;
 
     protected static void writeResponse(SocketChannel channel, ByteBuffer response) throws IOException {
         response.rewind();
@@ -60,8 +66,12 @@ public class ServerWorker implements Runnable {
         }
 
         storage.append(key, chunk);
-        
+
         filter.put(key.array());
+
+        if (!isAnotherNode) {
+            replicationClient.push(key, chunk);
+        }
 
         response.put(Server.OperationResultStatus.SUCCESS);
 
@@ -110,15 +120,18 @@ public class ServerWorker implements Runnable {
 
         if (filter.mightContain(key.array())) {
             storage.delete(key);
+            if (!isAnotherNode) {
+                replicationClient.remove(key);
+            }
         }
-        
+
         ByteBuffer response = ByteBuffer.allocate(ServerStorage.KEY_LENGTH + 1);
         response.put(key.array());
         response.put(Server.OperationResultStatus.SUCCESS);
 
         writeResponse(channel, response);
     }
-    
+
     protected void seek(SocketChannel channel) throws IOException {
         ByteBuffer key = ByteBuffer.allocate(ServerStorage.KEY_LENGTH);
         while (key.hasRemaining()) {
@@ -135,21 +148,25 @@ public class ServerWorker implements Runnable {
 
         ByteBuffer response = ByteBuffer.allocate(ServerStorage.KEY_LENGTH + 1);
         response.put(key.array());
-        
+
         if (filter.mightContain(key.array()) && storage.contains(key)) {
-            response.put(Server.OperationResultStatus.CHUNK_WAS_FOUND);
+            if (!isAnotherNode && replicationClient.seek(key)) {
+                response.put(Server.OperationResultStatus.CHUNK_WAS_FOUND);
+            } else {
+                response.put(Server.OperationResultStatus.CHUNK_WAS_NOT_FOUND);
+            }
         } else {
             response.put(Server.OperationResultStatus.CHUNK_WAS_NOT_FOUND);
         }
 
         writeResponse(channel, response);
     }
-    
+
     @Override
     public void run() {
         try {
             ByteBuffer typeOfOperation = ByteBuffer.allocate(1);
-            
+
             while (channel.isConnected()) {
                 typeOfOperation.rewind();
                 channel.read(typeOfOperation);
@@ -162,7 +179,7 @@ public class ServerWorker implements Runnable {
                 } else if (operationType == Server.OperationTypes.REMOVING) {
                     remove(channel);
                 } else if (operationType == Server.OperationTypes.SEEKING) {
-                    seek(channel);                    
+                    seek(channel);
                 } else {
                     log.warn("Unknown operation type {}", operationType);
                 }

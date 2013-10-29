@@ -2,7 +2,6 @@ package me.ilyamirin.anthophila;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 import java.io.File;
 import java.io.FileWriter;
@@ -14,7 +13,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
@@ -26,9 +24,7 @@ import me.ilyamirin.anthophila.common.Topology;
 import me.ilyamirin.anthophila.server.Server;
 import me.ilyamirin.anthophila.server.ServerParams;
 import me.ilyamirin.anthophila.server.ServerStorage;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 import org.junit.Test;
 
 /**
@@ -37,7 +33,7 @@ import org.junit.Test;
  */
 @Slf4j
 public class ClusterModeIntegrationTest {
-    
+
     private Random r = ThreadLocalRandom.current();
 
     @Test
@@ -50,7 +46,7 @@ public class ClusterModeIntegrationTest {
         List<Byte> mask = Lists.newArrayList((byte) 0);
         List<Node> nodes = Lists.newArrayList(new Node(host, 7620), new Node(host, 7621));
         topology.addKeyMask(mask, nodes);
-        
+
         mask = Lists.newArrayList((byte) 1, (byte) 0);
         nodes = Lists.newArrayList(new Node(host, 7622));
         topology.addKeyMask(mask, nodes);
@@ -58,7 +54,7 @@ public class ClusterModeIntegrationTest {
         mask = Lists.newArrayList((byte) 1, (byte) 1);
         nodes = Lists.newArrayList(new Node(host, 7623));
         topology.addKeyMask(mask, nodes);
-        
+
         FileWriter writer = new FileWriter("topology.json");
         new Gson().toJson(topology.getKeyMasks(), writer);
         writer.close();
@@ -89,6 +85,8 @@ public class ClusterModeIntegrationTest {
             serverParams.setOldKeysFile("old.keys");
 
             serverParams.setMaxConnections(10);
+            
+            serverParams.setTopologyFile("topology.json");
 
             writer = new FileWriter(String.format("server%s.json", i));
             new Gson().toJson(serverParams, ServerParams.class, writer);
@@ -180,7 +178,7 @@ public class ClusterModeIntegrationTest {
         assertTrue(file.length() <= expectedSpace * 1.1 / 4);
         assertTrue(file.length() >= expectedSpace * 0.9 / 4);
         totalSpace += file.length();
-        
+
         assertTrue(totalSpace <= expectedSpace * 1.1);
         assertTrue(totalSpace >= expectedSpace * 0.9);
 

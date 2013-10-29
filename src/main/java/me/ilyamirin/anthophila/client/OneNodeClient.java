@@ -1,6 +1,5 @@
 package me.ilyamirin.anthophila.client;
 
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import me.ilyamirin.anthophila.server.Server;
 import me.ilyamirin.anthophila.server.ServerStorage;
@@ -9,21 +8,24 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 
 /**
  * @author ilyamirin
  */
 @Slf4j
+@RequiredArgsConstructor
 public class OneNodeClient implements Client {
 
-    @Setter
+    @NonNull
     private SocketChannel socketChannel;
+    @NonNull
+    private InetSocketAddress address;
 
     public static OneNodeClient newClient(String host, int port) throws IOException {
-        OneNodeClient client = new OneNodeClient();
-        SocketChannel socketChannel = SocketChannel.open(new InetSocketAddress(host, port));
-        client.setSocketChannel(socketChannel);
-        return client;
+        SocketChannel socketChannel = SocketChannel.open();
+        return new OneNodeClient(socketChannel, new InetSocketAddress(host, port));
     }
 
     public boolean isConnected() {
@@ -33,7 +35,7 @@ public class OneNodeClient implements Client {
     @Override
     public synchronized boolean push(ByteBuffer key, ByteBuffer chunk) throws IOException {
         if (!socketChannel.isConnected()) {
-            socketChannel.connect(socketChannel.getLocalAddress());
+            socketChannel.connect(address);
         }
 
         key.rewind();
@@ -77,7 +79,7 @@ public class OneNodeClient implements Client {
     @Override
     public synchronized ByteBuffer pull(ByteBuffer key) throws IOException {
         if (!socketChannel.isConnected()) {
-            socketChannel.connect(socketChannel.getLocalAddress());
+            socketChannel.connect(address);
         }
 
         key.rewind();
@@ -129,7 +131,7 @@ public class OneNodeClient implements Client {
     @Override
     public synchronized boolean remove(ByteBuffer key) throws IOException {
         if (!socketChannel.isConnected()) {
-            socketChannel.connect(socketChannel.getLocalAddress());
+            socketChannel.connect(address);
         }
 
         key.rewind();
@@ -167,7 +169,7 @@ public class OneNodeClient implements Client {
     @Override
     public synchronized boolean seek(ByteBuffer key) throws IOException {
         if (!socketChannel.isConnected()) {
-            socketChannel.connect(socketChannel.getLocalAddress());
+            socketChannel.connect(address);
         }
 
         key.rewind();

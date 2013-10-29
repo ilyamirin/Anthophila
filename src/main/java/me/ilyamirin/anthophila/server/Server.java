@@ -1,7 +1,6 @@
 package me.ilyamirin.anthophila.server;
 
 import com.google.common.hash.BloomFilter;
-import com.google.common.hash.Funnels;
 import com.google.gson.Gson;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
@@ -9,17 +8,13 @@ import lombok.extern.slf4j.Slf4j;
 import me.ilyamirin.anthophila.common.Topology;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import static me.ilyamirin.anthophila.server.ServerStorage.AUX_CHUNK_INFO_LENGTH;
-import static me.ilyamirin.anthophila.server.ServerStorage.CHUNK_LENGTH;
-import static me.ilyamirin.anthophila.server.ServerStorage.ENCRYPTION_CHUNK_INFO_LENGTH;
-import static me.ilyamirin.anthophila.server.ServerStorage.KEY_LENGTH;
+import me.ilyamirin.anthophila.client.ReplicationClient;
+import me.ilyamirin.anthophila.common.Node;
 
 @Slf4j
 @AllArgsConstructor
@@ -49,6 +44,8 @@ public class Server extends Thread {
     private Topology topology;
     @NonNull
     private BloomFilter<byte[]> bloomFilter;
+    @NonNull
+    private ReplicationClient replicationClient;
 
     @Override
     public void run() {
@@ -61,11 +58,20 @@ public class Server extends Thread {
             log.info("Waiting for a client...");
 
             ExecutorService executor = Executors.newCachedThreadPool();
-
+            
             while (serverSocketChannel.isOpen()) {
-                SocketChannel channel = serverSocketChannel.accept();
+                SocketChannel channel = serverSocketChannel.accept();                                
+
                 if (channel != null) {
-                    executor.execute(new ServerWorker(params, storage, topology, channel, bloomFilter));
+                    String host = channel.socket().getInetAddress().getHostAddress();
+                    int port = channel.socket().getPort();
+                    Node node = new Node(host, port);
+                    
+                    boolean isAnotherNode = topology.getNodes().containsKey(node);
+                    
+                    log.info("{} {}", node, isAnotherNode);
+                    
+                    executor.execute(new ServerWorker(params, storage, topology, channel, bloomFilter, replicationClient, isAnotherNode));
                 }
             }//while
 
@@ -80,7 +86,8 @@ public class Server extends Thread {
         ServerParams serverParams = new Gson().fromJson(new FileReader(pathToConfig), ServerParams.class);
         log.info("{}", serverParams);
         
-        Topology topology = serverParams.isServeAll() ? null : Topology.loadFromFile(serverParams.getTopologyFile());
+        Topology topology = Topology.loadFromFile(serverParams.getTopologyFile());
+        log.info("{}", topology);
         
         ServerEnigma serverEnigma = ServerEnigma.newServerEnigma(serverParams);
         
@@ -88,7 +95,9 @@ public class Server extends Thread {
 
         BloomFilter<byte[]> bloomFilter = serverStorage.loadExistedStorage();
         
-        Server server = new Server(serverParams, serverStorage, topology, bloomFilter);        
+        ReplicationClient replicationClient = ReplicationClient.newReplicationClient(serverParams, topology);
+        
+        Server server = new Server(serverParams, serverStorage, topology, bloomFilter, replicationClient);
         server.start();
     }
 
