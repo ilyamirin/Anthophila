@@ -14,7 +14,6 @@ import java.nio.channels.SocketChannel;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import me.ilyamirin.anthophila.client.ReplicationClient;
-import me.ilyamirin.anthophila.common.Node;
 
 @Slf4j
 @AllArgsConstructor
@@ -26,6 +25,7 @@ public class Server extends Thread {
         public static final byte PULLING = Byte.MAX_VALUE - 1;
         public static final byte REMOVING = Byte.MAX_VALUE - 2;
         public static final byte SEEKING = Byte.MAX_VALUE - 3;
+        public static final byte SET_CONNECTION_TYPE = Byte.MAX_VALUE - 4;
     }
 
     public final class OperationResultStatus {
@@ -34,6 +34,7 @@ public class Server extends Thread {
         public static final byte CHUNK_WAS_NOT_FOUND = Byte.MAX_VALUE - 1;
         public static final byte CHUNK_WAS_FOUND = Byte.MAX_VALUE - 2;
         public static final byte KEY_IS_OUT_OF_RANGE = Byte.MAX_VALUE - 3;
+        public static final byte CHUNK_KEY_IS_INCONSISTENT = Byte.MAX_VALUE - 4;
         public static final byte FAILURE = Byte.MIN_VALUE;
     }
 
@@ -61,17 +62,8 @@ public class Server extends Thread {
             
             while (serverSocketChannel.isOpen()) {
                 SocketChannel channel = serverSocketChannel.accept();                                
-
-                if (channel != null) {
-                    String host = channel.socket().getInetAddress().getHostAddress();
-                    int port = channel.socket().getPort();
-                    Node node = new Node(host, port);
-                    
-                    boolean isAnotherNode = topology.getNodes().containsKey(node);
-                    
-                    log.info("{} {}", node, isAnotherNode);
-                    
-                    executor.execute(new ServerWorker(params, storage, topology, channel, bloomFilter, replicationClient, isAnotherNode));
+                if (channel != null) {                    
+                    executor.execute(new ServerWorker(params, storage, topology, channel, bloomFilter, replicationClient));
                 }
             }//while
 

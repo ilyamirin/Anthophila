@@ -28,7 +28,7 @@ public class ClusterClient implements Client {
     public static ClusterClient newClusterClient(Topology topology) throws IOException {
         Map<Node, OneNodeClient> clients = Maps.newHashMap();
         for (Node node : topology.getNodes().keySet()) {
-            clients.put(node, OneNodeClient.newClient(node.getHost(), node.getPort()));
+            clients.put(node, OneNodeClient.newClient(node.getHost(), node.getPort(), Client.ConnectionType.OTHERS));
         }
         return new ClusterClient(clients, topology);
     }

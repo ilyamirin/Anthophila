@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import com.google.gson.Gson;
 import lombok.extern.slf4j.Slf4j;
 import me.ilyamirin.anthophila.client.OneNodeClient;
+import me.ilyamirin.anthophila.client.Client;
 import me.ilyamirin.anthophila.server.Server;
 import me.ilyamirin.anthophila.server.ServerParams;
 import me.ilyamirin.anthophila.server.ServerStorage;
@@ -99,7 +100,7 @@ public class SingleModeIntegrationTest {
                 public void run() {
                     OneNodeClient client;
                     try {
-                        client = OneNodeClient.newClient(host, port);
+                        client = OneNodeClient.newClient(host, port, Client.ConnectionType.OTHERS);
                     } catch (IOException ioe) {
                         errorsCounter.incrementAndGet();
                         log.error("Connection problem", ioe);
@@ -165,7 +166,7 @@ public class SingleModeIntegrationTest {
 
         assertTrue(0 == errorsCounter.get());
                 
-        OneNodeClient client = OneNodeClient.newClient(host, port);
+        OneNodeClient client = OneNodeClient.newClient(host, port, Client.ConnectionType.OTHERS);
         int chunksChecked = 0;
         for (Pair pair : storedChunks) {
             assertTrue(client.seek(ByteBuffer.wrap(pair.getKey())));

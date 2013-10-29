@@ -28,7 +28,7 @@ public class ReplicationClient implements Client {
         for (List<Byte> mask : masks) {
             for (Node node : topology.getKeyMasks().get(mask)) {
                 if (!node.equals(thisNode)) {
-                    clients.add(OneNodeClient.newClient(node.getHost(), node.getPort()));
+                    clients.add(OneNodeClient.newClient(node.getHost(), node.getPort(), Client.ConnectionType.REPLICA));
                 }
             }
         }

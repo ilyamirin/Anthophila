@@ -4,19 +4,19 @@ import com.google.common.hash.BloomFilter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import lombok.AllArgsConstructor;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.ilyamirin.anthophila.client.ReplicationClient;
 import me.ilyamirin.anthophila.common.Topology;
+import me.ilyamirin.anthophila.client.Client;
 
 /**
  *
  * @author ilyamirin
  */
 @Slf4j
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class ServerWorker implements Runnable {
 
     @NonNull
@@ -31,13 +31,30 @@ public class ServerWorker implements Runnable {
     private BloomFilter<byte[]> filter;
     @NonNull
     private ReplicationClient replicationClient;
-    private boolean isAnotherNode;
+    private byte connectionType = Client.ConnectionType.OTHERS;
 
     protected static void writeResponse(SocketChannel channel, ByteBuffer response) throws IOException {
         response.rewind();
         while (response.hasRemaining()) {
             channel.write(response);
         }
+    }
+
+    protected void setConnectionType(SocketChannel channel) throws IOException {
+        ByteBuffer type = ByteBuffer.allocate(1);
+        while (type.hasRemaining()) {
+            channel.read(type);
+        }
+
+        if (connectionType != type.get(0)) {
+            connectionType = type.get(0);
+        }
+
+        type.put(0, Server.OperationResultStatus.SUCCESS);
+
+        type.rewind();
+
+        writeResponse(channel, type);
     }
 
     protected void push(SocketChannel channel) throws IOException {
@@ -69,7 +86,7 @@ public class ServerWorker implements Runnable {
 
         filter.put(key.array());
 
-        if (!isAnotherNode) {
+        if (connectionType != Client.ConnectionType.REPLICA) {
             replicationClient.push(key, chunk);
         }
 
@@ -120,7 +137,7 @@ public class ServerWorker implements Runnable {
 
         if (filter.mightContain(key.array())) {
             storage.delete(key);
-            if (!isAnotherNode) {
+            if (connectionType != Client.ConnectionType.REPLICA) {
                 replicationClient.remove(key);
             }
         }
@@ -149,12 +166,13 @@ public class ServerWorker implements Runnable {
         ByteBuffer response = ByteBuffer.allocate(ServerStorage.KEY_LENGTH + 1);
         response.put(key.array());
 
-        if (filter.mightContain(key.array()) && storage.contains(key)) {
-            if (!isAnotherNode && replicationClient.seek(key)) {
-                response.put(Server.OperationResultStatus.CHUNK_WAS_FOUND);
-            } else {
-                response.put(Server.OperationResultStatus.CHUNK_WAS_NOT_FOUND);
-            }
+        boolean isFound = filter.mightContain(key.array()) && storage.contains(key);
+        if (connectionType != Client.ConnectionType.REPLICA) {
+            isFound &= replicationClient.seek(key);
+        }
+
+        if (isFound) {
+            response.put(Server.OperationResultStatus.CHUNK_WAS_FOUND);
         } else {
             response.put(Server.OperationResultStatus.CHUNK_WAS_NOT_FOUND);
         }
@@ -180,6 +198,8 @@ public class ServerWorker implements Runnable {
                     remove(channel);
                 } else if (operationType == Server.OperationTypes.SEEKING) {
                     seek(channel);
+                } else if (operationType == Server.OperationTypes.SET_CONNECTION_TYPE) {
+                    setConnectionType(channel);
                 } else {
                     log.warn("Unknown operation type {}", operationType);
                 }
@@ -188,5 +208,4 @@ public class ServerWorker implements Runnable {
             log.error("Worker exception:", ioe);
         }
     }
-
 }

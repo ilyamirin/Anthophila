@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import lombok.AllArgsConstructor;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
@@ -15,27 +16,51 @@ import lombok.RequiredArgsConstructor;
  * @author ilyamirin
  */
 @Slf4j
-@RequiredArgsConstructor
+@AllArgsConstructor
 public class OneNodeClient implements Client {
 
     @NonNull
     private SocketChannel socketChannel;
     @NonNull
     private InetSocketAddress address;
+    private byte defaultConnectionType;
 
-    public static OneNodeClient newClient(String host, int port) throws IOException {
+    public static OneNodeClient newClient(String host, int port, byte defaultConnectionType) throws IOException {
         SocketChannel socketChannel = SocketChannel.open();
-        return new OneNodeClient(socketChannel, new InetSocketAddress(host, port));
+        return new OneNodeClient(socketChannel, new InetSocketAddress(host, port), defaultConnectionType);
     }
 
     public boolean isConnected() {
         return socketChannel.isConnected();
     }
 
+    public boolean setConnectionType() throws IOException {
+        if (!socketChannel.isConnected()) {
+            socketChannel.connect(address);            
+        }
+
+        ByteBuffer request = ByteBuffer.allocate(2);
+        request.put(Server.OperationTypes.SET_CONNECTION_TYPE);
+        request.put(defaultConnectionType);
+
+        request.rewind();
+        while (request.hasRemaining()) {
+            socketChannel.write(request);
+        }
+
+        ByteBuffer response = ByteBuffer.allocate(1);
+        while (response.hasRemaining()) {
+            socketChannel.read(response);
+        }
+
+        return response.get(0) == Server.OperationResultStatus.SUCCESS;
+    }
+
     @Override
     public synchronized boolean push(ByteBuffer key, ByteBuffer chunk) throws IOException {
         if (!socketChannel.isConnected()) {
             socketChannel.connect(address);
+            setConnectionType();
         }
 
         key.rewind();
@@ -80,6 +105,7 @@ public class OneNodeClient implements Client {
     public synchronized ByteBuffer pull(ByteBuffer key) throws IOException {
         if (!socketChannel.isConnected()) {
             socketChannel.connect(address);
+            setConnectionType();
         }
 
         key.rewind();
@@ -132,6 +158,7 @@ public class OneNodeClient implements Client {
     public synchronized boolean remove(ByteBuffer key) throws IOException {
         if (!socketChannel.isConnected()) {
             socketChannel.connect(address);
+            setConnectionType();
         }
 
         key.rewind();
@@ -170,6 +197,7 @@ public class OneNodeClient implements Client {
     public synchronized boolean seek(ByteBuffer key) throws IOException {
         if (!socketChannel.isConnected()) {
             socketChannel.connect(address);
+            setConnectionType();
         }
 
         key.rewind();
@@ -208,4 +236,5 @@ public class OneNodeClient implements Client {
     public void close() throws IOException {
         socketChannel.finishConnect();
     }
+
 }
