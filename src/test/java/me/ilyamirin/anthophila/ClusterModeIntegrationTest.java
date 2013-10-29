@@ -48,22 +48,22 @@ public class ClusterModeIntegrationTest {
         Topology topology = new Topology();
 
         List<Byte> mask = Lists.newArrayList((byte) 0);
-        Set<Node> nodes = Sets.newHashSet(new Node(host, 7620));
+        List<Node> nodes = Lists.newArrayList(new Node(host, 7620), new Node(host, 7621));
         topology.addKeyMask(mask, nodes);
-
+        
         mask = Lists.newArrayList((byte) 1, (byte) 0);
-        nodes = Sets.newHashSet(new Node(host, 7621));
+        nodes = Lists.newArrayList(new Node(host, 7622));
         topology.addKeyMask(mask, nodes);
 
         mask = Lists.newArrayList((byte) 1, (byte) 1);
-        nodes = Sets.newHashSet(new Node(host, 7622));
+        nodes = Lists.newArrayList(new Node(host, 7623));
         topology.addKeyMask(mask, nodes);
         
         FileWriter writer = new FileWriter("topology.json");
         new Gson().toJson(topology.getKeyMasks(), writer);
         writer.close();
 
-        int serversCount = 3;
+        int serversCount = 4;
 
         for (int i = 0; i < serversCount; i++) {
             String fileName = String.format("test%s.bin", i);
@@ -101,10 +101,6 @@ public class ClusterModeIntegrationTest {
         Thread.sleep(1500);
 
         ClusterClient client = ClusterClient.newClusterClient(topology);
-
-        for (Map.Entry<Node, OneNodeClient> entry : client.getClients().entrySet()) {
-            assertTrue(entry.getValue().isConnected());
-        }
 
         final int requestsNumber = 10000;
         final AtomicInteger requestsPassed = new AtomicInteger(0);
@@ -171,11 +167,16 @@ public class ClusterModeIntegrationTest {
         totalSpace += file.length();
 
         file = new File("test1.bin");
+        assertTrue(file.length() <= expectedSpace * 1.1 / 2);
+        assertTrue(file.length() >= expectedSpace * 0.9 / 2);
+        totalSpace += file.length();
+
+        file = new File("test2.bin");
         assertTrue(file.length() <= expectedSpace * 1.1 / 4);
         assertTrue(file.length() >= expectedSpace * 0.9 / 4);
         totalSpace += file.length();
 
-        file = new File("test2.bin");
+        file = new File("test3.bin");
         assertTrue(file.length() <= expectedSpace * 1.1 / 4);
         assertTrue(file.length() >= expectedSpace * 0.9 / 4);
         totalSpace += file.length();

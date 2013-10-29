@@ -28,25 +28,25 @@ public class TopologyTest {
 
     private void testTopology(Topology topology) {
         List<Byte> first = Lists.newArrayList((byte) 0);
-        Set<Node> nodesForFirst = Sets.newHashSet(new Node("127.0.0.1", 999), new Node("127.0.0.4", 999));
+        List<Node> nodesForFirst = Lists.newArrayList(new Node("127.0.0.1", 999), new Node("127.0.0.4", 999));
         topology.getKeyMasks().put(first, nodesForFirst);
 
         List<Byte> second = Lists.newArrayList((byte) 1, (byte) 0);
-        Set<Node> nodesForSecond = Sets.newHashSet(new Node("127.0.0.2", 999));
+        List<Node> nodesForSecond = Lists.newArrayList(new Node("127.0.0.2", 999));
         topology.getKeyMasks().put(second, nodesForSecond);
 
         List<Byte> third = Lists.newArrayList((byte) 1, (byte) 1);
-        Set<Node> nodesForThird = Sets.newHashSet(new Node("127.0.0.3", 999));
+        List<Node> nodesForThird = Lists.newArrayList(new Node("127.0.0.3", 999));
         topology.getKeyMasks().put(third, nodesForThird);
-
+        
         byte[] keyForFirstNode = new byte[]{0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0};
-        assertTrue(Sets.symmetricDifference(topology.findNodes(ByteBuffer.wrap(keyForFirstNode)), nodesForFirst).isEmpty());
+        assertEquals(topology.findNodes(ByteBuffer.wrap(keyForFirstNode)), nodesForFirst);
 
         byte[] keyForSecondNode = new byte[]{1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0};
-        assertTrue(Sets.symmetricDifference(topology.findNodes(ByteBuffer.wrap(keyForSecondNode)), nodesForSecond).isEmpty());
+        assertEquals(topology.findNodes(ByteBuffer.wrap(keyForSecondNode)), nodesForSecond);
 
         byte[] keyForThirdNode = new byte[]{1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0};
-        assertTrue(Sets.symmetricDifference(topology.findNodes(ByteBuffer.wrap(keyForThirdNode)), nodesForThird).isEmpty());
+        assertEquals(topology.findNodes(ByteBuffer.wrap(keyForThirdNode)), nodesForThird);
     }
 
     @Test
@@ -62,4 +62,11 @@ public class TopologyTest {
         assertTrue(Sets.symmetricDifference(loadedTopology.getKeyMasks().keySet(), topology.getKeyMasks().keySet()).isEmpty());
         testTopology(loadedTopology);
     }//testEnigma
+    
+    @Test
+    public void testNode() {
+        assertEquals(new Node("127.0.0.1", 999), new Node("127.0.0.1", 999));
+        assertNotEquals(new Node("127.0.0.1", 999), new Node("127.0.0.4", 999));
+        assertNotEquals(new Node("127.0.0.1", 999), new Node("127.0.0.1", 1001));
+    }
 }

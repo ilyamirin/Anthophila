@@ -1,6 +1,5 @@
 package me.ilyamirin.anthophila.client;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -8,9 +7,10 @@ import me.ilyamirin.anthophila.common.Node;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import lombok.Getter;
 import me.ilyamirin.anthophila.common.Topology;
 
 /**
@@ -20,7 +20,6 @@ import me.ilyamirin.anthophila.common.Topology;
 @RequiredArgsConstructor
 public class ClusterClient implements Client {
 
-    @Getter
     @NonNull
     private Map<Node, OneNodeClient> clients;
     @NonNull
@@ -36,7 +35,9 @@ public class ClusterClient implements Client {
     
     @Override
     public boolean push(ByteBuffer key, ByteBuffer chunk) throws IOException {
-        for (Node node : topology.findNodes(key)) {
+        List<Node> nodes = new ArrayList<>(topology.findNodes(key));
+        Collections.shuffle(nodes);
+        for (Node node : nodes) {
             if (clients.containsKey(node)) {
                 return clients.get(node).push(key, chunk);
             }
@@ -46,7 +47,9 @@ public class ClusterClient implements Client {
 
     @Override
     public ByteBuffer pull(ByteBuffer key) throws IOException {
-        for (Node node : topology.findNodes(key)) {
+        List<Node> nodes = new ArrayList<>(topology.findNodes(key));
+        Collections.shuffle(nodes);
+        for (Node node : nodes) {
             if (clients.containsKey(node)) {
                 return clients.get(node).pull(key);
             }
@@ -56,7 +59,9 @@ public class ClusterClient implements Client {
 
     @Override
     public boolean seek(ByteBuffer key) throws IOException {
-        for (Node node : topology.findNodes(key)) {
+        List<Node> nodes = new ArrayList<>(topology.findNodes(key));
+        Collections.shuffle(nodes);
+        for (Node node : nodes) {
             if (clients.containsKey(node)) {
                 return clients.get(node).seek(key);
             }
@@ -66,7 +71,9 @@ public class ClusterClient implements Client {
 
     @Override
     public boolean remove(ByteBuffer key) throws IOException {
-        for (Node node : topology.findNodes(key)) {
+        List<Node> nodes = new ArrayList<>(topology.findNodes(key));
+        Collections.shuffle(nodes);
+        for (Node node : nodes) {
             if (clients.containsKey(node)) {
                 return clients.get(node).remove(key);
             }
