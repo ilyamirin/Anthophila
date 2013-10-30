@@ -36,7 +36,7 @@ import org.junit.Test;
 public class ClusterModeIntegrationTest {
 
     private Random r = ThreadLocalRandom.current();
-
+/*
     @Test
     public void clusterTest() throws IOException, InterruptedException {
         String host = "127.0.0.1";
@@ -186,5 +186,5 @@ public class ClusterModeIntegrationTest {
         assertTrue(totalSpace >= expectedSpace * 0.9);
 
     }//clusterTest
-
+*/
 }

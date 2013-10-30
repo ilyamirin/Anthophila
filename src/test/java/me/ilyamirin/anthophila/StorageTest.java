@@ -69,7 +69,7 @@ public class StorageTest {
                         existedKeys.put(md5Hash.getLong(0), md5Hash);
                         existedValues.put(md5Hash.getLong(0), chunk);
                     }
-                } catch (IOException ioe) {
+                } catch (Exception ioe) {
                     log.error("Oops!", ioe);
                 }
                 counter++;
@@ -97,11 +97,11 @@ public class StorageTest {
         file.createNewFile();
     }
 
-    public void setUp(boolean isEnctiptionOn) throws IOException {
+    public void setUp(boolean isEnctiptionOn) throws Exception {
         System.gc();
 
         ServerParams params = new ServerParams();
-        params.setStorageFile(file.getAbsolutePath());
+        params.setTarget("testing-target-disk1");
         params.setInitialIndexSize(5000);
         params.setEncrypt(isEnctiptionOn);
 
@@ -112,7 +112,7 @@ public class StorageTest {
     }
 
     @Test
-    public void basicOpsTest() throws IOException {
+    public void basicOpsTest() throws Exception {
         cleanStorageFile();
         setUp(false);
 
@@ -146,7 +146,7 @@ public class StorageTest {
     }
 
     @Test
-    public void basicOpsParallelTest() throws InterruptedException, FileNotFoundException, IOException {
+    public void basicOpsParallelTest() throws Exception {
         cleanStorageFile();
         setUp(false);
 

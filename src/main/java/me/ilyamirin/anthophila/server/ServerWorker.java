@@ -57,7 +57,7 @@ public class ServerWorker implements Runnable {
         writeResponse(channel, type);
     }
 
-    protected void push(SocketChannel channel) throws IOException {
+    protected void push(SocketChannel channel) throws Exception {
         ByteBuffer key = ByteBuffer.allocate(ServerStorage.KEY_LENGTH);
         while (key.hasRemaining()) {
             channel.read(key);
@@ -95,7 +95,7 @@ public class ServerWorker implements Runnable {
         writeResponse(channel, response);
     }
 
-    protected void pull(SocketChannel channel) throws IOException {
+    protected void pull(SocketChannel channel) throws Exception {
         ByteBuffer key = ByteBuffer.allocate(ServerStorage.KEY_LENGTH);
         while (key.hasRemaining()) {
             channel.read(key);
@@ -129,7 +129,7 @@ public class ServerWorker implements Runnable {
         writeResponse(channel, response);
     }
 
-    protected void remove(SocketChannel channel) throws IOException {
+    protected void remove(SocketChannel channel) throws Exception {
         ByteBuffer key = ByteBuffer.allocate(ServerStorage.KEY_LENGTH);
         while (key.hasRemaining()) {
             channel.read(key);
@@ -204,7 +204,7 @@ public class ServerWorker implements Runnable {
                     log.warn("Unknown operation type {}", operationType);
                 }
             }
-        } catch (IOException ioe) {
+        } catch (Exception ioe) {
             log.error("Worker exception:", ioe);
         }
     }

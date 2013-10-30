@@ -8,7 +8,7 @@ import lombok.Data;
 @Data
 public class ServerParams {
 
-    private String storageFile;
+    private String target;
 
     private int initialIndexSize;
     private int maxExpectedSize;
@@ -22,5 +22,6 @@ public class ServerParams {
     private String oldKeysFile;
 
     private boolean serveAll;
+    
     private String topologyFile;
 }

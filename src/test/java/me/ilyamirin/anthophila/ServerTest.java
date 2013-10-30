@@ -25,7 +25,7 @@ import static org.junit.Assert.*;
 public class ServerTest {
 
     private Random r = new Random();
-
+/*
     @Ignore
     @Test
     public void serverMustRejectForeignKeys() throws IOException, InterruptedException {
@@ -39,7 +39,7 @@ public class ServerTest {
         int port = 7621;
 
         ServerParams serverParams = new ServerParams();
-        serverParams.setStorageFile("test.bin");
+      //  serverParams.setStorageFile("test.bin");
 
         serverParams.setHost(host);
         serverParams.setPort(port);
@@ -89,5 +89,5 @@ public class ServerTest {
     public void clusteredTest() throws IOException, InterruptedException {
 
     }
-
+*/
 }

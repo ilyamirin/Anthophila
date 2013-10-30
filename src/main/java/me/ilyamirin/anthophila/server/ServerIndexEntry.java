@@ -11,6 +11,6 @@ import lombok.Data;
 @AllArgsConstructor
 public class ServerIndexEntry {
 
-    private long chunkPosition;
+    private int chunkPosition;
     private int chunkLength;
 }

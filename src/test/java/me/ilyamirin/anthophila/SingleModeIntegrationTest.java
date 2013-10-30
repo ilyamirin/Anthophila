@@ -34,7 +34,7 @@ import static org.junit.Assert.*;
 public class SingleModeIntegrationTest {
                             
     private Random r = ThreadLocalRandom.current();
-
+/*
     @Test
     public void simpleTest() throws IOException, InterruptedException {
         File file = new File("test.bin");
@@ -183,5 +183,5 @@ public class SingleModeIntegrationTest {
         assertTrue(bruteAllocatedSpace * 0.9 <= file.length() - ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH);
 
     }//simpleTest
-
+*/
 }

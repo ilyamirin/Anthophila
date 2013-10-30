@@ -1,5 +1,6 @@
 package me.ilyamirin.anthophila.server;
 
+import com.google.common.collect.Lists;
 import com.google.common.hash.BloomFilter;
 import com.google.common.hash.Funnels;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +13,10 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.commons.collections.map.LinkedMap;
 import org.apache.commons.collections.map.MultiKeyMap;
+import org.jscsi.exception.ConfigurationException;
+import org.jscsi.exception.NoSuchSessionException;
+import org.jscsi.initiator.Configuration;
+import org.jscsi.initiator.Initiator;
 
 /**
  * @author ilyamirin
@@ -28,26 +33,29 @@ public class ServerStorage {
 
     private ServerParams params;
 
-    private FileChannel fileChannel;
-
     private ServerEnigma enigma;
 
     private MultiKeyMap mainIndex;
+    private List<ServerIndexEntry> condemnedIndex;
+    
+    private Initiator initiator;
+    private String target;
+    private int lastBlock = 0;
 
-    private List<ServerIndexEntry> condemnedIndex = new ArrayList<>();
-
-    private ServerStorage(FileChannel fileChannel, ServerEnigma enigma, ServerParams params, MultiKeyMap mainIndex) {
-        this.fileChannel = fileChannel;
-        this.enigma = enigma;
+    public ServerStorage(ServerParams params, ServerEnigma enigma, MultiKeyMap mainIndex, List<ServerIndexEntry> condemnedIndex, Initiator initiator) {
         this.params = params;
+        this.enigma = enigma;
         this.mainIndex = mainIndex;
+        this.condemnedIndex = condemnedIndex;
+        this.initiator = initiator;
     }
 
-    public static ServerStorage newServerStorage(ServerParams params, ServerEnigma serverEnigma) throws IOException {
-        RandomAccessFile randomAccessFile = new RandomAccessFile(params.getStorageFile(), "rw");
-        FileChannel fileChannel = randomAccessFile.getChannel();
+    public static ServerStorage newServerStorage(ServerParams params, ServerEnigma serverEnigma) throws IOException, ConfigurationException, NoSuchSessionException {
+        Initiator initiator = new Initiator(Configuration.create());
+        initiator.createSession(params.getTarget());
         MultiKeyMap mainIndex = MultiKeyMap.decorate(new LinkedMap(params.getInitialIndexSize()));
-        ServerStorage serverStorage = new ServerStorage(fileChannel, serverEnigma, params, mainIndex);
+        List<ServerIndexEntry> condemnedIndex = Lists.newArrayList();
+        ServerStorage serverStorage = new ServerStorage(params, serverEnigma, mainIndex, condemnedIndex, initiator);
         return serverStorage;
     }
 
@@ -55,87 +63,82 @@ public class ServerStorage {
         return mainIndex.containsKey(key.getInt(0), key.getInt(4), key.getInt(8), key.getInt(12));
     }
 
-    public synchronized void append(ByteBuffer key, ByteBuffer chunk) throws IOException {
+    public synchronized void append(ByteBuffer key, ByteBuffer chunk) throws Exception {
         if (contains(key)) {
             return;
         }
 
-        ByteBuffer byteBuffer = ByteBuffer.allocate(AUX_CHUNK_INFO_LENGTH + ENCRYPTION_CHUNK_INFO_LENGTH + CHUNK_LENGTH)
+        ByteBuffer bufferToWrite = ByteBuffer.allocate(AUX_CHUNK_INFO_LENGTH + ENCRYPTION_CHUNK_INFO_LENGTH + CHUNK_LENGTH)
                 .put(Byte.MAX_VALUE) //tombstone is off
                 .put(key.array()) //chunk hash
                 .putInt(chunk.array().length); //chunk length
 
         if (params.isEncrypt()) {
             ServerEnigma.EncryptedChunk encryptedChunk = enigma.encrypt(chunk);
-            byteBuffer
+            bufferToWrite
                     .putInt(encryptedChunk.getKeyHash()) //key hash
                     .put(encryptedChunk.getIV()) //IV
                     .put(encryptedChunk.getChunk().array()); //encrypted chunk
         } else {
-            byteBuffer
+            bufferToWrite
                     .putInt(0) //empty key hash
                     .put(new byte[IV_LENGTH]) //empty IV
                     .put(chunk.array()); //chunk itself
         }
 
-        byteBuffer.rewind();
-
+        bufferToWrite.rewind();
+        
         if (condemnedIndex.isEmpty()) {
-            long chunkFirstBytePosition = fileChannel.size() + AUX_CHUNK_INFO_LENGTH;
-            while (byteBuffer.hasRemaining()) {
-                fileChannel.write(byteBuffer, fileChannel.size());
-            }
-            ServerIndexEntry entry = new ServerIndexEntry(chunkFirstBytePosition, chunk.array().length);
+            int chunkPosition = lastBlock + 1;
+            initiator.write(target, bufferToWrite, chunkPosition, bufferToWrite.capacity());
+            ServerIndexEntry entry = new ServerIndexEntry(chunkPosition, chunk.capacity());
             mainIndex.put(key.getInt(0), key.getInt(4), key.getInt(8), key.getInt(12), entry);
-
+            lastBlock++;
+            
         } else {
             ServerIndexEntry entry = condemnedIndex.get(0);
-            while (byteBuffer.hasRemaining()) {
-                fileChannel.write(byteBuffer, entry.getChunkPosition() - AUX_CHUNK_INFO_LENGTH);
-            }
+            initiator.write(target, bufferToWrite, entry.getChunkPosition(), bufferToWrite.capacity());            
             condemnedIndex.remove(0);
-            entry.setChunkLength(chunk.array().length);
+            entry.setChunkLength(chunk.capacity());
             mainIndex.put(key.getInt(0), key.getInt(4), key.getInt(8), key.getInt(12), entry);
         }
     }
 
-    public synchronized ByteBuffer read(ByteBuffer key) throws IOException {
+    public synchronized ByteBuffer read(ByteBuffer key) throws Exception {
         ServerIndexEntry indexEntry = (ServerIndexEntry) mainIndex.get(key.getInt(0), key.getInt(4), key.getInt(8), key.getInt(12));
 
         if (indexEntry == null) {
             return null;
         }
+        
+        ByteBuffer bufferToRead = ByteBuffer.allocate(WHOLE_CHUNK_WITH_META_LENGTH);
+        
+        initiator.read(target, bufferToRead, indexEntry.getChunkPosition(), WHOLE_CHUNK_WITH_META_LENGTH);
 
-        ByteBuffer buffer = ByteBuffer.allocate(ENCRYPTION_CHUNK_INFO_LENGTH);
-        while (buffer.hasRemaining()) {
-            fileChannel.read(buffer, indexEntry.getChunkPosition());
-        }
-
-        Integer keyHash = buffer.getInt(0);
+        Integer encryptionKeyHash = bufferToRead.getInt(AUX_CHUNK_INFO_LENGTH);
 
         byte[] IV = new byte[IV_LENGTH];
-        buffer.position(4);
-        buffer.get(IV);
+        bufferToRead.position(AUX_CHUNK_INFO_LENGTH + 4);
+        bufferToRead.get(IV);
 
-        ByteBuffer chunk = ByteBuffer.allocate(indexEntry.getChunkLength());
+        ByteBuffer chunk = ByteBuffer.allocate(indexEntry.getChunkLength());        
         while (chunk.hasRemaining()) {
-            fileChannel.read(chunk, indexEntry.getChunkPosition() + ENCRYPTION_CHUNK_INFO_LENGTH);
+            chunk.put(bufferToRead.get());
         }
-
-        if (keyHash == 0) {
+        
+        if (encryptionKeyHash == 0) {
             return chunk;
         } else {
-            ServerEnigma.EncryptedChunk encryptedChunk = new ServerEnigma.EncryptedChunk(keyHash, IV, chunk);
+            ServerEnigma.EncryptedChunk encryptedChunk = new ServerEnigma.EncryptedChunk(encryptionKeyHash, IV, chunk);
             return enigma.decrypt(encryptedChunk);
         }
     }
 
-    public synchronized void delete(ByteBuffer key) throws IOException {
-        ServerIndexEntry indexEntry = (ServerIndexEntry) mainIndex.remove(key.getInt(0), key.getInt(4), key.getInt(8), key.getInt(12));
-        if (indexEntry != null) {
-            long tombstonePosition = indexEntry.getChunkPosition() - AUX_CHUNK_INFO_LENGTH;
-            fileChannel.write(ByteBuffer.allocate(1).put(Byte.MIN_VALUE), tombstonePosition);
-            condemnedIndex.add(indexEntry);
+    public synchronized void delete(ByteBuffer key) throws Exception {
+        ServerIndexEntry entry = (ServerIndexEntry) mainIndex.remove(key.getInt(0), key.getInt(4), key.getInt(8), key.getInt(12));
+        if (entry != null) {
+            initiator.write(target, ByteBuffer.allocate(1).put(Byte.MIN_VALUE), entry.getChunkPosition(), 1);
+            condemnedIndex.add(entry);
         }
     }
 
@@ -147,7 +150,7 @@ public class ServerStorage {
         long position = 0;
 
         BloomFilter<byte[]> filter = BloomFilter.create(Funnels.byteArrayFunnel(), params.getMaxExpectedSize(), 0.01);
-        
+   /*     
         while (fileChannel.read(buffer, position) > 0) {
             buffer.rewind();
 
@@ -177,7 +180,7 @@ public class ServerStorage {
                 log.info("{} chunks were successfully loaded", chunksSuccessfullyLoaded);
             }
         }//while
-
+*/
         log.info("{} chunks were successfully loaded", chunksSuccessfullyLoaded);
 
         return filter;

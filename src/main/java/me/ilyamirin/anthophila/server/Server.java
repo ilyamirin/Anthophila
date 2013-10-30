@@ -73,7 +73,7 @@ public class Server extends Thread {
         }//try ServerSocketChannel
     }//run    
 
-    public static void main(String... args) throws IOException {
+    public static void main(String... args) throws Exception {
         String pathToConfig = args.length > 0 ? args[0] : "server.json";
         ServerParams serverParams = new Gson().fromJson(new FileReader(pathToConfig), ServerParams.class);
         log.info("{}", serverParams);
