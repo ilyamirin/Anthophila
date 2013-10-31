@@ -57,7 +57,7 @@ public class EnigmaTest {
         bufferedWriter.close();
 
         ServerParams serverParams = new ServerParams();
-        serverParams.setNewKeysFile(file.getAbsolutePath());
+        serverParams.setActualKeysFile(file.getAbsolutePath());
 
         final ServerEnigma enigma = ServerEnigma.newServerEnigma(serverParams);
 

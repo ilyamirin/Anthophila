@@ -52,7 +52,7 @@ public class ServerEnigma {
     }
 
     public static ServerEnigma newServerEnigma(ServerParams serverParams) throws IOException {
-        BufferedReader bufferedReader = new BufferedReader(new FileReader(serverParams.getNewKeysFile()));
+        BufferedReader bufferedReader = new BufferedReader(new FileReader(serverParams.getActualKeysFile()));
         Map<Integer, String> keys = synchronizedMap(new HashMap<Integer, String>());
         List<Integer> newKeysHashes = Collections.synchronizedList(new ArrayList<Integer>());
         while (bufferedReader.ready()) {

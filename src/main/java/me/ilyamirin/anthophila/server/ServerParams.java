@@ -10,7 +10,6 @@ public class ServerParams {
 
     private String target;
 
-    private int initialIndexSize;
     private int maxExpectedSize;
 
     private String host;
@@ -18,10 +17,10 @@ public class ServerParams {
     private int maxConnections;
 
     private boolean isEncrypt;
-    private String newKeysFile;
+    private String actualKeysFile;
     private String oldKeysFile;
 
     private boolean serveAll;
-    
+
     private String topologyFile;
 }

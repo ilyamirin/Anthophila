@@ -7,13 +7,17 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import me.ilyamirin.anthophila.common.Topology;
 import java.io.FileReader;
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import me.ilyamirin.anthophila.client.ReplicationClient;
+import org.apache.commons.collections.map.LinkedMap;
+import org.apache.commons.collections.map.MultiKeyMap;
+import org.jscsi.initiator.Configuration;
+import org.jscsi.initiator.Initiator;
 
 @Slf4j
 @AllArgsConstructor
@@ -75,21 +79,24 @@ public class Server extends Thread {
 
     public static void main(String... args) throws Exception {
         String pathToConfig = args.length > 0 ? args[0] : "server.json";
-        ServerParams serverParams = new Gson().fromJson(new FileReader(pathToConfig), ServerParams.class);
-        log.info("{}", serverParams);
+        ServerParams params = new Gson().fromJson(new FileReader(pathToConfig), ServerParams.class);
+        log.info("{}", params);
         
-        Topology topology = Topology.loadFromFile(serverParams.getTopologyFile());
+        Topology topology = Topology.loadFromFile(params.getTopologyFile());
         log.info("{}", topology);
         
-        ServerEnigma serverEnigma = ServerEnigma.newServerEnigma(serverParams);
+        ServerEnigma serverEnigma = ServerEnigma.newServerEnigma(params);
         
-        ServerStorage serverStorage = ServerStorage.newServerStorage(serverParams, serverEnigma);
+        Initiator initiator = new Initiator(Configuration.create());
+        initiator.createSession(params.getTarget());
+        
+        ServerStorage serverStorage = new ServerStorage(params, serverEnigma, MultiKeyMap.decorate(new LinkedMap(1000)), new ArrayList<ServerIndexEntry>(), initiator);
 
         BloomFilter<byte[]> bloomFilter = serverStorage.loadExistedStorage();
         
-        ReplicationClient replicationClient = ReplicationClient.newReplicationClient(serverParams, topology);
+        ReplicationClient replicationClient = ReplicationClient.newReplicationClient(params, topology);
         
-        Server server = new Server(serverParams, serverStorage, topology, bloomFilter, replicationClient);
+        Server server = new Server(params, serverStorage, topology, bloomFilter, replicationClient);
         server.start();
     }
 

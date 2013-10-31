@@ -3,18 +3,18 @@ package me.ilyamirin.anthophila;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.ilyamirin.anthophila.server.*;
-import org.junit.Before;
 import org.junit.Test;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static junit.framework.Assert.*;
+import org.apache.commons.collections.map.LinkedMap;
+import org.apache.commons.collections.map.MultiKeyMap;
+import org.jscsi.initiator.Configuration;
+import org.jscsi.initiator.Initiator;
 
 /**
  * @author ilyamirin
@@ -31,22 +31,21 @@ public class StorageTest {
         private AtomicInteger assertionErrorsCount;
         private AtomicInteger chunksDeletedCounter;
         private AtomicInteger passedRequests;
-        private Map<Long, ByteBuffer> existedKeys;
+        private final Map<Long, ByteBuffer> existedKeys;
         private Map<Long, ByteBuffer> existedValues;
         private int cuncurrentRequestsNumber;
 
         @Override
         public void run() {
             int counter = 0;
-            ByteBuffer md5Hash;
-            ByteBuffer chunk;
             while (counter < cuncurrentRequestsNumber) {
-                md5Hash = ByteBuffer.allocate(ServerStorage.KEY_LENGTH);
+                ByteBuffer md5Hash = ByteBuffer.allocate(ServerStorage.KEY_LENGTH);
                 r.nextBytes(md5Hash.array());
-                chunk = ByteBuffer.allocate(ServerStorage.CHUNK_LENGTH);
+                ByteBuffer chunk = ByteBuffer.allocate(ServerStorage.CHUNK_LENGTH);
                 r.nextBytes(chunk.array());
                 try {
                     storage.append(md5Hash, chunk);
+                    log.info("add {}", md5Hash.array());
                     if (!storage.contains(md5Hash)) {
                         log.error("storage does not contains {}", md5Hash);
                         log.info("Assertion Errors Count {}", assertionErrorsCount.incrementAndGet());
@@ -56,6 +55,7 @@ public class StorageTest {
                     }
                     if (r.nextBoolean()) {
                         storage.delete(md5Hash);
+                        log.info("del {}", md5Hash.array());
                         if (storage.contains(md5Hash)) {
                             log.error("storage contains deleted key {}", md5Hash);
                             log.info("Assertion Errors Count {}", assertionErrorsCount.incrementAndGet());
@@ -66,7 +66,9 @@ public class StorageTest {
                             chunksDeletedCounter.incrementAndGet();
                         }
                     } else {
-                        existedKeys.put(md5Hash.getLong(0), md5Hash);
+                        synchronized (existedKeys) {
+                            existedKeys.put(md5Hash.getLong(0), md5Hash);
+                        }
                         existedValues.put(md5Hash.getLong(0), chunk);
                     }
                 } catch (Exception ioe) {
@@ -83,75 +85,64 @@ public class StorageTest {
 
     private Random r = new Random();
     private ServerStorage storage;
-    private File file;
-    private ServerEnigma enigma;
-
-    @Before
-    public void cleanStorageFile() throws IOException {
-        if (file == null) {
-            file = new File("test.bin");
-        }
-        if (file.exists()) {
-            file.delete();
-        }
-        file.createNewFile();
-    }
+    private Initiator initiator;
+    private ServerParams params;
 
     public void setUp(boolean isEnctiptionOn) throws Exception {
         System.gc();
 
-        ServerParams params = new ServerParams();
+        params = new ServerParams();
         params.setTarget("testing-target-disk1");
-        params.setInitialIndexSize(5000);
         params.setEncrypt(isEnctiptionOn);
 
         ServerEnigma enigma = ServerEnigma.newServerEnigma(ServerEnigma.generateKeys(10), new HashMap<Integer, String>());
 
-        storage = ServerStorage.newServerStorage(params, enigma);
-        storage.loadExistedStorage();
+        if (initiator != null) {
+            initiator.closeSession(params.getTarget());            
+        } else {
+            initiator = new Initiator(Configuration.create());
+        }
+        initiator.createSession(params.getTarget());
+        
+        storage = new ServerStorage(params, enigma, MultiKeyMap.decorate(new LinkedMap(1000)), new ArrayList<ServerIndexEntry>(), initiator);
     }
 
     @Test
     public void basicOpsTest() throws Exception {
-        cleanStorageFile();
         setUp(false);
 
-        ByteBuffer md5Hash = ByteBuffer.allocate(ServerStorage.KEY_LENGTH);
-        r.nextBytes(md5Hash.array());
-        ByteBuffer chunk = ByteBuffer.allocate(ServerStorage.CHUNK_LENGTH);
-        r.nextBytes(chunk.array());
+        ByteBuffer key1 = ByteBuffer.allocate(ServerStorage.KEY_LENGTH);
+        r.nextBytes(key1.array());
+        ByteBuffer chunk1 = ByteBuffer.allocate(ServerStorage.CHUNK_LENGTH);
+        r.nextBytes(chunk1.array());
 
-        storage.append(md5Hash, chunk);
+        storage.append(key1, chunk1);
 
-        assertTrue(storage.contains(md5Hash));
-        assertTrue(Arrays.equals(chunk.array(), storage.read(md5Hash).array()));
+        assertTrue(storage.contains(key1));
+        assertTrue(Arrays.equals(chunk1.array(), storage.read(key1).array()));
 
-        chunk = ByteBuffer.allocate(ServerStorage.CHUNK_LENGTH / 2);
-        r.nextBytes(md5Hash.array());
-        r.nextBytes(chunk.array());
+        ByteBuffer key2 = ByteBuffer.allocate(ServerStorage.KEY_LENGTH);
+        r.nextBytes(key2.array());
+        ByteBuffer chunk2 = ByteBuffer.allocate(ServerStorage.CHUNK_LENGTH / 2);
+        r.nextBytes(chunk2.array());
+        
+        storage.append(key2, chunk2);
 
-        storage.append(md5Hash, chunk);
+        assertTrue(storage.contains(key2));
+        assertTrue(Arrays.equals(chunk2.array(), storage.read(key2).array()));
 
-        assertTrue(storage.contains(md5Hash));
-        assertTrue(Arrays.equals(chunk.array(), storage.read(md5Hash).array()));
+        storage.delete(key1);
 
-        assertEquals((ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH * 2), file.length());
-
-        storage.delete(md5Hash);
-
-        assertFalse(storage.contains(md5Hash));
-        assertNull(storage.read(md5Hash));
-
-        assertEquals((ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH * 2), file.length());
+        assertFalse(storage.contains(key1));
+        assertNull(storage.read(key1));        
     }
 
     @Test
     public void basicOpsParallelTest() throws Exception {
-        cleanStorageFile();
         setUp(false);
 
         int concurrentClientsNumber = 10;
-        int concurrentRequestsNumber = 1000;
+        int concurrentRequestsNumber = 10;
         CountDownLatch latch = new CountDownLatch(concurrentClientsNumber);
         AtomicInteger assertionErrorsCount = new AtomicInteger(0);
         AtomicInteger passedRequests = new AtomicInteger(0);
@@ -169,22 +160,17 @@ public class StorageTest {
         assertEquals(0, assertionErrorsCount.get());
         log.info("{} have been passed for {} seconds.", concurrentClientsNumber * concurrentRequestsNumber, (System.currentTimeMillis() - start) / 1000);
 
-        long expectedSpace = ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH * (concurrentClientsNumber * concurrentRequestsNumber
-                - chunksDeletedCounter.get());
-        assertTrue((file.length() - expectedSpace) == ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH || file.length() == expectedSpace);
-
         //try to reload database and ask about previously addad chunks
 
         setUp(false);
 
+        storage.loadExistedStorage();
+        
         int counter = 0;
         for (Map.Entry<Long, ByteBuffer> entry : existedKeys.entrySet()) {
+            log.info("check {}", entry.getValue().array());
             assertTrue(storage.contains(entry.getValue()));
-
-            ByteBuffer result = storage.read(entry.getValue());
-
-            assertNotNull(result);
-            assertTrue(Arrays.equals(existedValues.get(entry.getKey()).array(), result.array()));
+            assertTrue(Arrays.equals(entry.getValue().array(), storage.read(entry.getValue()).array()));
 
             counter++;
             if (counter % concurrentRequestsNumber == 0) {
@@ -231,12 +217,6 @@ public class StorageTest {
         log.info("{} I/O operations have been passed for {} seconds.", concurrentClientsNumber * concurrentRequestsNumber, (System.currentTimeMillis() - start) / 1000);
 
         assertEquals(0, assertionErrorsCount.get());
-
-        expectedSpace += ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH * (concurrentClientsNumber * concurrentRequestsNumber - chunksDeletedCounter.get());
-        expectedSpace += ServerStorage.WHOLE_CHUNK_WITH_META_LENGTH * 4;
-
-        log.info("Used space={}, max expected space= {}", file.length(), expectedSpace);
-        assertTrue(file.length() <= expectedSpace);
 
     }//basicOpsParallelTest
 
