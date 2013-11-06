@@ -1,4 +1,4 @@
-package me.ilyamirin.anthophila.common;
+package me.ilyamirin.anthophila.index;
 
 import java.nio.ByteBuffer;
 import lombok.AllArgsConstructor;
@@ -14,6 +14,7 @@ public interface Index {
     @AllArgsConstructor
     public static class Entry {
 
+        private int targetNumber;
         private int chunkPosition;
         private int chunkLength;
     }

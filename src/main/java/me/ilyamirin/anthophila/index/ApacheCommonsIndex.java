@@ -1,4 +1,4 @@
-package me.ilyamirin.anthophila.common;
+package me.ilyamirin.anthophila.index;
 
 import java.nio.ByteBuffer;
 import lombok.AllArgsConstructor;

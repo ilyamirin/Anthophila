@@ -6,7 +6,7 @@ import java.nio.ByteBuffer;
  *
  * @author ilyamirin
  */
-public interface ChunkMap {
+public interface ChunkStore {
 
     boolean containsKey(ByteBuffer key);
     
