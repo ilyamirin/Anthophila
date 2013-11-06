@@ -18,7 +18,7 @@
         <ImmediateData>Yes</ImmediateData>
         <InitialR2T>Yes</InitialR2T>
         <InitiatorAlias>InitiatorAlias</InitiatorAlias>
-        <InitiatorName>InitiatorName</InitiatorName>
+        <InitiatorName>iliya-initiator</InitiatorName>
         <MaxBurstLength>262144</MaxBurstLength>
         <MaxConnections>1</MaxConnections>
         <MaxOutstandingR2T>1</MaxOutstandingR2T>
@@ -28,10 +28,10 @@
         <SessionType>Normal</SessionType>
     </global>
     
-    <target id="testing-target-disk1" address="192.168.125.131" port="3260">
+    <target id="testing-target-disk1" address="127.0.0.1" port="3260">
         <ImmediateData>No</ImmediateData>
-        <InitiatorName>IdefixInitiator</InitiatorName>
-        <TargetName>iqn.2000-03.com.falconstor-ipstor.125lima-nss-remote.iliya-initiator-0</TargetName>
+        <!--TargetName>iqn.2000-03.com.falconstor-ipstor.125lima-nss-remote.iliya-initiator-0</TargetName-->
+        <TargetName>iqn.2001-04.com.example:storage.disk2.sys1.xyz</TargetName>
     </target>
     
 </configuration>    
