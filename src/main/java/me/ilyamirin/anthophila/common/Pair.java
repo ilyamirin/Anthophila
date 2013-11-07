@@ -9,8 +9,12 @@ import lombok.Data;
  */
 @Data
 @AllArgsConstructor
-public class Pair {
+public class Pair<T, E> {
 
-    private byte[] key;
-    private byte[] value;
+    public static <T, E> Pair<T, E> newPair(T key, E value) {
+        return new Pair(key, value);
+    }
+    
+    private T key;
+    private E value;
 }

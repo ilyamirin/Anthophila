@@ -14,9 +14,9 @@ public interface Index {
     @AllArgsConstructor
     public static class Entry {
 
-        private int targetNumber;
-        private int chunkPosition;
-        private int chunkLength;
+        private byte array;
+        private int position;
+        private int length;
     }
 
     boolean containsKey(ByteBuffer key);

@@ -9,16 +9,16 @@ import org.apache.commons.collections.map.MultiKeyMap;
  *
  * @author ilyamirin
  */
-public class ApacheCommonsIndex implements Index {
+public class InMemoryIndex implements Index {
 
     private MultiKeyMap index;
 
-    private ApacheCommonsIndex(MultiKeyMap index) {
+    private InMemoryIndex(MultiKeyMap index) {
         this.index = index;
     }
     
-    public static ApacheCommonsIndex create(int initialCapacity) {
-        return new ApacheCommonsIndex(MultiKeyMap.decorate(new LinkedMap(initialCapacity)));
+    public static InMemoryIndex create(int initialCapacity) {
+        return new InMemoryIndex(MultiKeyMap.decorate(new LinkedMap(initialCapacity)));
     }
     
     @Override
