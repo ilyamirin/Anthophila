@@ -29,15 +29,24 @@ public class iSCSIChunkArrayTest {
         int maxIterations = 1000;
         
         long start = System.currentTimeMillis();
+        long totalSize = 0;
+        
+        Thread.sleep(10);
         
         for (int i = 0; i < maxIterations; i++) {
             byte[] chunk = new byte[CHUNK_SIZE - r.nextInt(CHUNK_SIZE / 2)];
+            totalSize += chunk.length;
             r.nextBytes(chunk);
             assertTrue(chunks.set(i, ByteBuffer.wrap(chunk)));
             bytes.add(chunk);
-        }
+            if (i != 0 && (i % 100 == 0)) {
+                log.warn("{} seconds were spent to process {} chunks ({} MB/s).", (System.currentTimeMillis() - start) / 1000, i, i * CHUNK_SIZE / 1024 / 1024 / ((System.currentTimeMillis() - start) / 100));
+            }
+        }          
         
-        log.info("{} seconds were spent to process {} chunks.", (System.currentTimeMillis() - start) / 1000, maxIterations);
+        long spentTime = (System.currentTimeMillis() - start) / 1000;
+        
+        log.warn("{} seconds were spent to send {} chunks of {} MB.", spentTime, maxIterations, totalSize / 1000000);        
         
         for (int i = 0; i < maxIterations; i++) {
             assertTrue(Arrays.equals(bytes.get(i), chunks.get(i, bytes.get(i).length).array()));
@@ -55,7 +64,7 @@ public class iSCSIChunkArrayTest {
 
         for (int i = 0; i < maxIterations; i++) {
             assertTrue(Arrays.equals(bytes.get(i), chunks.get(i, bytes.get(i).length).array()));
-        }        
-        
+        }       
+                
     }
 }
