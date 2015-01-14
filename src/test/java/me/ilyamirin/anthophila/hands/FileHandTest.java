@@ -1,4 +1,4 @@
-package me.ilyamirin.anthophila.storage;
+package me.ilyamirin.anthophila.hands;
 
 import lombok.extern.slf4j.Slf4j;
 import me.ilyamirin.anthophila.BufferUtils;
@@ -6,7 +6,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import static org.junit.Assert.*;
@@ -26,15 +26,22 @@ public class FileHandTest {
     }
 
     @Test
-    public void test() throws FileNotFoundException {
+    public void test() throws IOException {
         ByteBuffer buffer1 = BufferUtils.randomBuffer(65536);
         ByteBuffer buffer2 = BufferUtils.randomBuffer(55555);
         ByteBuffer buffer3 = BufferUtils.randomBuffer(65536);
 
         FileHand writer = FileHand.create("testFile");
-        assertTrue(writer.write(0, buffer1));
-        assertTrue(writer.write(buffer1.capacity(), buffer2));
-        assertTrue(writer.write(buffer1.capacity() + buffer2.capacity(), buffer3));
+        assertEquals(0, writer.size());
+
+        writer.write(0, buffer1);
+        assertEquals(buffer1.capacity(), writer.size());
+
+        writer.write(buffer1.capacity(), buffer2);
+        assertEquals(buffer1.capacity() + buffer2.capacity(), writer.size());
+
+        writer.write(buffer1.capacity() + buffer2.capacity(), buffer3);
+        assertEquals(buffer1.capacity() + buffer2.capacity() + buffer3.capacity(), writer.size());
 
         ByteBuffer buffer1_1 = writer.read(0, 65536);
         assertEquals(buffer1_1.hashCode(), buffer1.hashCode());
