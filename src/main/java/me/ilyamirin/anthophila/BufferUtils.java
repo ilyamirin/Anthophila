@@ -21,4 +21,14 @@ public class BufferUtils {
         r.nextBytes(array);
         return ByteBuffer.wrap(array);
     }
+
+    public static void clearAll(ByteBuffer... buffers) {
+        for (ByteBuffer buffer : buffers)
+            buffer.clear();
+    }
+
+    public static boolean isEqual(ByteBuffer buffer1, ByteBuffer buffer2) {
+        clearAll(buffer1, buffer2);
+        return buffer1.hashCode() == buffer2.hashCode();
+    }
 }
