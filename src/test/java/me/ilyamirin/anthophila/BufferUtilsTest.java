@@ -15,6 +15,17 @@ import static me.ilyamirin.anthophila.BufferUtils.*;
 public class BufferUtilsTest {
 
     @Test
+    public void isEqualtest() {
+        ByteBuffer buffer1 = randomBuffer(1024);
+        ByteBuffer buffer2 = randomBuffer(1024);
+        ByteBuffer buffer3 = ByteBuffer.wrap(buffer1.array());
+
+        assertTrue(isEqual(buffer1, buffer1));
+        assertFalse(isEqual(buffer1, buffer2));
+        assertTrue(isEqual(buffer1, buffer3));
+    }
+
+    @Test
     public void randomeBufferTest() {
         for (int i = 0; i < 1000; i++) {
             ByteBuffer buffer1 = randomBuffer(1024);
