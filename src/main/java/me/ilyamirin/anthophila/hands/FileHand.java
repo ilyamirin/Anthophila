@@ -31,16 +31,20 @@ public class FileHand implements Hand {
 
     @Override
     public void write(int position, ByteBuffer bufferToWrite) throws IOException {
-        while (bufferToWrite.hasRemaining())
-            fileChannel.write(bufferToWrite, position);
+        synchronized (this) {
+            while (bufferToWrite.hasRemaining())
+                fileChannel.write(bufferToWrite, position);
+        }
         bufferToWrite.rewind();
     }
 
     @Override
     public ByteBuffer read(int position, int size) throws IOException {
         ByteBuffer bufferToRead = BufferUtils.emptyBuffer(size);
-        while (bufferToRead.hasRemaining())
-            fileChannel.read(bufferToRead, position);
+        synchronized (this) {
+            while (bufferToRead.hasRemaining())
+                fileChannel.read(bufferToRead, position);
+        }
         bufferToRead.clear();
         return bufferToRead;
     }
