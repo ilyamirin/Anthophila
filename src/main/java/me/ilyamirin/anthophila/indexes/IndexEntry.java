@@ -14,6 +14,6 @@ import me.ilyamirin.anthophila.hands.Hand;
 public class IndexEntry {
 
     private Hand hand;
-    private Integer position;
+    private Long position;
     private Integer size;
 }
