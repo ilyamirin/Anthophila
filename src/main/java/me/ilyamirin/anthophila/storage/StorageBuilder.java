@@ -14,7 +14,7 @@ public class StorageBuilder<KEY, VALUE> {
     private Storage<KEY, VALUE> storage;
 
     public StorageBuilder storageClass(Class<? extends Storage> claz) throws IllegalAccessException, InstantiationException {
-        storage = claz.newInstance();
+        storage = (Storage<KEY, VALUE>) claz.newInstance();
         return this;
     }
 

@@ -50,9 +50,9 @@ public class InMemoryIndex implements Index {
         synchronized (this) {
             inMemoryIndexEntries = container.get(key.hashCode());
         }
-        for (InMemoryIndexEntry entry : inMemoryIndexEntries) {
-            if (isEqual(entry.getKey(), key))
-                return entry.getEntry();
+        for (InMemoryIndexEntry indexEntry : inMemoryIndexEntries) {
+            if (isEqual(indexEntry.getKey(), key))
+                return indexEntry.getEntry();
         }
         return null;
     }

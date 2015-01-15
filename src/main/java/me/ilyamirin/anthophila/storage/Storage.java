@@ -24,7 +24,7 @@ public abstract class Storage<KEY, VALUE> {
     protected Serializer<KEY> keySerializer;
     protected Serializer<VALUE> valueSerializer;
 
-    abstract IndexEntry acquireFreeSpace(int size);
+    abstract IndexEntry getFreeSpace(int size) throws IOException;
 
     public boolean put(KEY key, VALUE value) throws IOException {
         Preconditions.checkNotNull(key);
@@ -37,11 +37,13 @@ public abstract class Storage<KEY, VALUE> {
 
         ByteBuffer valueBuffer = valueSerializer.serialize(value);
 
-        IndexEntry indexEntry = acquireFreeSpace(valueBuffer.capacity());
+        IndexEntry indexEntry = getFreeSpace(valueBuffer.capacity());
 
         Hand workingHand = indexEntry.getHand();
 
         workingHand.write(indexEntry.getPosition(), valueBuffer);
+
+        index.put(keyBuffer, indexEntry);
 
         return true;
     }

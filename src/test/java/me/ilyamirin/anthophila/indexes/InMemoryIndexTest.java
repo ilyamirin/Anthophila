@@ -28,7 +28,7 @@ public class InMemoryIndexTest {
         final Index index = new InMemoryIndex();
 
         ByteBuffer key = randomBuffer(16);
-        IndexEntry indexEntry = new IndexEntry(null, 0, 1024);
+        IndexEntry indexEntry = new IndexEntry(null, 0l, 1024);
 
         index.put(key, indexEntry);
 
@@ -51,7 +51,7 @@ public class InMemoryIndexTest {
             public void run() {
                 for (int i = 0; i < 5000; i++) {
                     ByteBuffer key = randomBuffer(16);
-                    IndexEntry indexEntry = new IndexEntry(null, r.nextInt(), 1024);
+                    IndexEntry indexEntry = new IndexEntry(null, r.nextLong(), 1024);
                     index.put(key, indexEntry);
                     assertTrue(index.contains(key));
                     assertEquals(indexEntry, index.get(key));
